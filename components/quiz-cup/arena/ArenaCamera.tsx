@@ -29,18 +29,21 @@ const DEBUG_CAM: number[] | null = (() => {
 export default function ArenaCamera({
   phase,
   focus,
+  ready,
 }: {
   phase: QuizCupArenaPhase;
   /** Podium to close in on (e.g. the player being revealed), or null for the phase shot. */
   focus: PodiumSlot | null;
+  /** False while the loading cover is up: the shot's clock (e.g. the intro orbit) waits. */
+  ready: boolean;
 }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
-  const phaseStart = useRef(0);
+  const phaseStart = useRef(-1);
   const placed = useRef(false);
 
   useEffect(() => {
-    phaseStart.current = -1; // stamped on the next frame with the clock time
-  }, [phase]);
+    phaseStart.current = -1; // stamped on the next visible frame with the clock time
+  }, [phase, ready]);
 
   useFrame((state, delta) => {
     // Dev: `?cam=x,y,z,tx,ty,tz[,fov]` pins the camera (for inspecting the set up close).
@@ -55,8 +58,9 @@ export default function ArenaCamera({
       return;
     }
     const t = state.clock.elapsedTime;
-    if (phaseStart.current < 0) phaseStart.current = t;
-    const since = t - phaseStart.current;
+    // Behind the loading cover the clock stays at 0, so the show opens on the shot's first frame.
+    if (ready && phaseStart.current < 0) phaseStart.current = t;
+    const since = ready ? t - phaseStart.current : 0;
     let fov: number;
 
     if (focus) {

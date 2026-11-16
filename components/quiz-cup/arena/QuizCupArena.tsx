@@ -2,8 +2,6 @@
 
 import { Environment, Lightformer, PerformanceMonitor, useProgress } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer, N8AO, ToneMapping } from "@react-three/postprocessing";
-import { ToneMappingMode } from "postprocessing";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
@@ -23,8 +21,9 @@ import ArenaBeams from "./ArenaBeams";
 import ArenaCamera from "./ArenaCamera";
 import ArenaContestants, { ArenaHost, preloadArenaContestants } from "./ArenaContestants";
 import ArenaStudio, { preloadArenaStudio } from "./ArenaStudio";
-import BakedStudioProbe from "./BakedStudioProbe";
+import { bakeStudioEnvironment } from "./BakedStudioProbe";
 import PlayerTag from "./PlayerTag";
+import StudioComposer from "./StudioComposer";
 
 preloadArenaContestants();
 preloadArenaStudio();
@@ -107,8 +106,9 @@ function StageLights({ shadows }: { shadows: boolean }) {
 }
 
 /**
- * Compiles every shader and uploads every texture while the loading cover is still up, so
- * the first frames of the show never stall on a first-use compile.
+ * Everything that could stall or flash is done here, while the loading cover is still up:
+ * compile every shader, upload every texture, bake the studio's reflection probe, then compile
+ * again for the new environment map. The show's first frames never hit a first-use compile.
  */
 function Warmup({ onReady }: { onReady: () => void }) {
   const gl = useThree((s) => s.gl);
@@ -116,20 +116,27 @@ function Warmup({ onReady }: { onReady: () => void }) {
   const camera = useThree((s) => s.camera);
   useEffect(() => {
     let alive = true;
-    gl.compileAsync(scene, camera).then(() => {
+    let env: THREE.Texture | null = null;
+    (async () => {
+      await gl.compileAsync(scene, camera);
       if (!alive) return;
       scene.traverse((o) => {
         const material = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
         if (!material) return;
-        for (const t of [material.map, material.lightMap, material.emissiveMap, material.normalMap]) {
+        for (const t of [material.map, material.lightMap, material.emissiveMap, material.normalMap, material.roughnessMap]) {
           if (t) gl.initTexture(t);
         }
       });
+      env = bakeStudioEnvironment(gl, scene);
+      await gl.compileAsync(scene, camera);
+      if (!alive) return;
       gl.shadowMap.needsUpdate = true;
       requestAnimationFrame(() => alive && onReady());
-    });
+    })();
     return () => {
       alive = false;
+      if (env && scene.environment === env) scene.environment = null;
+      env?.dispose();
     };
   }, [gl, scene, camera, onReady]);
   return null;
@@ -209,17 +216,22 @@ export default function QuizCupArena({
     onReadyRef.current?.();
   }, []);
   const handleLayout = useCallback(() => setLayoutVersion((v) => v + 1), []);
-  // Only ever step down: flipping tiers back and forth would recompile shaders mid-game.
-  const stepDown = useCallback(
-    () => setAutoTier((t) => TIERS[Math.min(TIERS.indexOf(t) + 1, TIERS.length - 1)]),
-    [],
+  // The tier is chosen once, before the show (GPU detection), and never changes mid-game:
+  // switching tiers swaps the floor material and the post-processing chain and toggles
+  // shadows, i.e. recompiles shaders and rebuilds render targets = visible flashes.
+  // If frames still drop, only the render resolution steps down (no shader changes), at
+  // most twice.
+  const [dprCap, setDprCap] = useState<number>(Infinity);
+  const lowerResolution = useCallback(
+    () => setDprCap((cap) => Math.max(1, Math.min(cap, settings.dpr) - 0.25)),
+    [settings.dpr],
   );
 
   return (
     <div className={cn("relative h-full w-full overflow-hidden", className)} style={{ background: BACKDROP }}>
       <Canvas
         shadows={{ type: THREE.PCFShadowMap }} // r186 dropped PCFSoftShadowMap (r3f's default)
-        dpr={[1, settings.dpr]}
+        dpr={[1, Math.min(settings.dpr, dprCap)]}
         camera={{ position: [1.6, 2.9, 10.8], fov: 50, near: 0.1, far: 90 }}
         gl={{
           antialias: true,
@@ -237,7 +249,7 @@ export default function QuizCupArena({
         <fogExp2 attach="fog" args={[STUDIO.fog, 0.014]} />
         {/* Measured only once the show is running: loading and shader warm-up frames are slow by design */}
         {ready && !quality && (
-          <PerformanceMonitor onDecline={stepDown} flipflops={2} onFallback={() => setAutoTier("low")} />
+          <PerformanceMonitor onDecline={lowerResolution} flipflops={2} onFallback={() => setDprCap(1)} />
         )}
 
         {/* Rendered once (frames = 1): dim coloured strips for the glossy floor and metal to reflect */}
@@ -270,27 +282,11 @@ export default function QuizCupArena({
           <Warmup onReady={handleReady} />
         </Suspense>
 
-        {/* Once ready: bake the studio's own reflections into scene.environment. */}
-        <BakedStudioProbe ready={ready} />
         <FrozenShadows version={layoutVersion + TIERS.indexOf(tier)} />
-        <ArenaCamera phase={phase} focus={focus} />
+        <ArenaCamera phase={phase} focus={focus} ready={ready} />
 
-        {settings.bloom &&
-          (settings.reflections ? (
-            // multisampling > 0 renders black on ANGLE / Metal (Chrome on macOS)
-            <EffectComposer key="ao" multisampling={0} enableNormalPass={false}>
-              {/* Contact shadows where things meet (podiums on decks, tiers, audience rows),
-                  like Aetherwyn's GTAO pass. High tier only. */}
-              <N8AO aoRadius={0.8} distanceFalloff={0.6} intensity={2.4} color="#05030f" halfRes quality="medium" />
-              <Bloom mipmapBlur luminanceThreshold={0.9} luminanceSmoothing={0.2} intensity={0.7} />
-              <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-            </EffectComposer>
-          ) : (
-            <EffectComposer key="plain" multisampling={0} enableNormalPass={false}>
-              <Bloom mipmapBlur luminanceThreshold={0.9} luminanceSmoothing={0.2} intensity={0.7} />
-              <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-            </EffectComposer>
-          ))}
+        {/* Aetherwyn's pipeline: MSAA before bloom, GTAO on the high tier, dither, OutputPass. */}
+        {settings.bloom && <StudioComposer ambientOcclusion={settings.reflections} />}
       </Canvas>
       {/* Head labels, positioned every frame by ArenaContestants */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">

@@ -17,6 +17,7 @@ import {
 import { getMockEmojiReactions } from "@/mock/emoji-reactions";
 import { useQuizCupStore } from "@/stores/QuizCupStore";
 import type { QuizCupHostPlayer, QuizCupHostQuestion } from "@/types/quiz-cup";
+import type { RoomPlayer } from "@/types/room";
 import type {
   QuizCupPlayingPlayerView,
   QuizCupRoomView,
@@ -74,16 +75,42 @@ type HostStage = {
   correctChoice?: number;
 };
 
+type RosterEntry = { id: string; name: string };
+
+/** Who is in the game, from whichever view lists them (PREPARING doesn't). */
+function rosterOf(room: QuizCupRoomView | null, lobbyPlayers: RoomPlayer[]): RosterEntry[] | null {
+  if (!room) return null;
+  if (room.state === "LOBBY") return lobbyPlayers.map((p) => ({ id: p.id, name: p.name }));
+  if ((room.state === "PLAYING" || room.state === "ROUND_RESULT") && "players" in room) {
+    return room.players.map((p) => ({ id: p.playerId, name: p.name }));
+  }
+  return null;
+}
+
+/**
+ * The last roster seen, kept through the views that don't list players, so the
+ * 3D stage keeps its podiums during the countdown instead of emptying and
+ * rebuilding the set before every question.
+ */
+function useLastRoster(room: QuizCupRoomView | null, lobbyPlayers: RoomPlayer[]) {
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const next = rosterOf(room, lobbyPlayers);
+  const key = (list: RosterEntry[]) => list.map((p) => `${p.id}\u0001${p.name}`).join("\u0002");
+  // Adjusting state during render (React's documented pattern): no extra effect pass.
+  if (next && next.length > 0 && key(next) !== key(roster)) setRoster(next);
+  return next && next.length > 0 ? next : roster;
+}
+
 /**
  * Maps the host's room view onto the 3D stage. `holding` keeps the question
  * board up for a moment after the server has already moved to the reveal.
  */
-function toHostStage(room: QuizCupRoomView, holding: boolean): HostStage | null {
+function toHostStage(room: QuizCupRoomView, holding: boolean, roster: RosterEntry[]): HostStage | null {
   if (room.state === "PREPARING") {
     return {
       phase: "countdown",
       question: { ...room.question, question: "", choices: [] },
-      players: [],
+      players: roster.map((p) => ({ id: p.id, name: p.name, answered: false })),
       endsAt: room.preparingEndsAt,
       durationSeconds: secondsBetween(
         room.preparingStartedAt,
@@ -183,6 +210,7 @@ const QuizCupGame = ({ role, options }: Props) => {
   } = useMockQuizCupRoom(role, options);
   const online = useOnlineStatus();
   const holding = useRevealHold(role === "host" ? room : null);
+  const roster = useLastRoster(room, players);
   const [starting, setStarting] = useState(false);
   const [joining, setJoining] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -425,7 +453,7 @@ const QuizCupGame = ({ role, options }: Props) => {
         );
       case "host_stage": {
         if (!room || role !== "host") return null;
-        const stage = toHostStage(room, holding);
+        const stage = toHostStage(room, holding, roster);
         if (!stage) return null;
         return (
           <QuizCupHostStage

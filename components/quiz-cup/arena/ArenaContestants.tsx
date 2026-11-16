@@ -176,7 +176,7 @@ function ArenaContestants({ players, slots, castShadows, onLayout, tags }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the joined names
   }, [handles, names, font]);
 
-  // Status -> LED colour. A change flashes the strips for a moment.
+  // Status -> LED colour. A change gives the strips one soft swell (not a strobe).
   const statusRef = useRef(players.map((p) => p.status));
   const flashAt = useRef<number[]>([]);
   useEffect(() => {
@@ -211,7 +211,9 @@ function ArenaContestants({ players, slots, castShadows, onLayout, tags }: Props
       const status = statusRef.current[i] ?? "idle";
       characters[i].rig.update(t, dt, status);
       const since = now - (flashAt.current[i] ?? -10);
-      const flash = since < 1.2 ? 1 + 1.2 * Math.abs(Math.sin(since * Math.PI * 4)) * (1 - since / 1.2) : 1;
+      // One smooth rise and fall over 0.7 s, peaking at 1.5×. The old 4 Hz blink at up to
+      // 2.2× (on every podium at once, through bloom) read as flashing.
+      const flash = since < 0.7 ? 1 + 0.5 * Math.sin((since / 0.7) * Math.PI) : 1;
       for (const m of handles[i]?.leds ?? []) {
         if (m.name !== BASE_LED) m.emissiveIntensity = flash;
       }

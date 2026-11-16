@@ -364,29 +364,80 @@ function Platforms() {
 
 // --- Swept geometry round the studio ------------------------------------------------------------
 
-/** A closed (u = metres in from radius `r`, v = height) profile swept along an arc. */
-function sweepArc(r: number, from: number, to: number, profile: [number, number][], segments = 120) {
+/**
+ * A (u = metres in from radius `r`, v = height) profile swept along an arc, `from` < `to`.
+ *
+ * Faces always point out of the solid whichever way the profile is wound. `closed` joins the
+ * last profile point back to the first; `caps` closes both ends of a closed profile so the
+ * swept piece doesn't show a hollow end. An open profile (`closed: false`) is a single
+ * surface, facing the stage when its points run top to bottom.
+ */
+function sweepArc(
+  r: number,
+  from: number,
+  to: number,
+  profile: [number, number][],
+  segments = 120,
+  { closed = true, caps = closed }: { closed?: boolean; caps?: boolean } = {},
+) {
   const n = profile.length;
   const pos: number[] = [];
+  const at = (deg: number, u: number, v: number): [number, number, number] => {
+    const a = deg * DEG;
+    return [STUDIO_CENTER.x + Math.cos(a) * (r - u), v, STUDIO_CENTER.z + Math.sin(a) * (r - u)];
+  };
   for (let i = 0; i <= segments; i++) {
-    const a = (from + ((to - from) * i) / segments) * DEG;
-    const cx = Math.cos(a);
-    const sz = Math.sin(a);
-    for (const [u, v] of profile) {
-      const rr = r - u;
-      pos.push(STUDIO_CENTER.x + cx * rr, v, STUDIO_CENTER.z + sz * rr);
-    }
+    const deg = from + ((to - from) * i) / segments;
+    for (const [u, v] of profile) pos.push(...at(deg, u, v));
   }
+  // Shoelace area in (u, v): clockwise profiles (negative) already wind outwards.
+  let area = 0;
+  for (let j = 0; j < n; j++) {
+    const [u0, v0] = profile[j];
+    const [u1, v1] = profile[(j + 1) % n];
+    area += u0 * v1 - u1 * v0;
+  }
+  const flip = closed && area > 0;
   const index: number[] = [];
+  const edges = closed ? n : n - 1;
   for (let i = 0; i < segments; i++) {
-    for (let j = 0; j < n; j++) {
+    for (let j = 0; j < edges; j++) {
       const a = i * n + j;
       const b = i * n + ((j + 1) % n);
       const c = (i + 1) * n + j;
       const d = (i + 1) * n + ((j + 1) % n);
-      index.push(a, b, c, b, d, c);
+      if (flip) index.push(a, c, b, b, c, d);
+      else index.push(a, b, c, b, d, c);
     }
   }
+
+  if (closed && caps && n >= 3) {
+    const tris = THREE.ShapeUtils.triangulateShape(
+      profile.map(([u, v]) => new THREE.Vector2(u, v)),
+      [],
+    );
+    const p = new THREE.Vector3();
+    const q = new THREE.Vector3();
+    const s = new THREE.Vector3();
+    for (const [deg, sign] of [
+      [from, -1],
+      [to, 1],
+    ] as const) {
+      // Outward along the arc: the tangent at `to`, against it at `from`.
+      const a = deg * DEG;
+      const out = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(sign);
+      const base = pos.length / 3;
+      for (const [u, v] of profile) pos.push(...at(deg, u, v));
+      for (const [i0, i1, i2] of tris) {
+        p.fromArray(pos, (base + i0) * 3);
+        q.fromArray(pos, (base + i1) * 3).sub(p);
+        s.fromArray(pos, (base + i2) * 3).sub(p);
+        if (q.cross(s).dot(out) >= 0) index.push(base + i0, base + i1, base + i2);
+        else index.push(base + i0, base + i2, base + i1);
+      }
+    }
+  }
+
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(index);
@@ -567,7 +618,7 @@ function Audience() {
     // violet neon top edge.
     for (const b of AUDIENCE.blocks) {
       const r = AUDIENCE.barrier;
-      g.add(new THREE.Mesh(sweepArc(r + 0.3, b.from + 1, b.to - 1, pillow(0.3, 0, 1.15)), painted("#5a3cc8", 0.35, 0.2, { side: THREE.DoubleSide })));
+      g.add(new THREE.Mesh(sweepArc(r + 0.3, b.from + 1, b.to - 1, pillow(0.3, 0, 1.15)), painted("#5a3cc8", 0.35, 0.2)));
       g.add(new THREE.Mesh(sweepArc(r + 0.01, b.from + 2, b.to - 2, pillow(0.04, 0.42, 0.72)), glow(STUDIO.blue, 0.9)));
       g.add(new THREE.Mesh(arcTube(r - 0.02, b.from + 1.5, b.to - 1.5, 1.13, 0.02), glow(STUDIO.violet, 1.6)));
       g.add(new THREE.Mesh(arcTube(r - 0.02, b.from + 1.5, b.to - 1.5, 0.06, 0.015), glow(STUDIO.gold, 1.3)));
@@ -586,10 +637,11 @@ const WALL = { r: 13.8, from: 128, to: 412, height: 10.6 };
 function Walls() {
   const group = useMemo(() => {
     const g = new THREE.Group();
-    const dbl = { side: THREE.DoubleSide };
     const { r, from, to } = WALL;
 
-    g.add(new THREE.Mesh(sweepArc(r, from, to, [[0, 0], [0, WALL.height]], 180), painted("#120f34", 0.75, 0.1, dbl)));
+    // A single surface facing the stage (top-to-bottom profile, not closed: a closed two-point
+    // profile is two coincident opposite faces, which z-fight).
+    g.add(new THREE.Mesh(sweepArc(r, from, to, [[0, WALL.height], [0, 0]], 180, { closed: false }), painted("#120f34", 0.75, 0.1)));
 
     // Blue lit bays above the audience, framed by pillowy arch pilasters.
     const bays = 22;
@@ -628,9 +680,9 @@ function Walls() {
     }
 
     // Stacked bands: purple fascia, coral glow strip, upper fascia, violet neon top.
-    g.add(new THREE.Mesh(sweepArc(r, from, to, pillow(0.55, 5.95, 6.55), 180), painted("#5b40c8", 0.3, 0.2, dbl)));
+    g.add(new THREE.Mesh(sweepArc(r, from, to, pillow(0.55, 5.95, 6.55), 180), painted("#5b40c8", 0.3, 0.2)));
     g.add(new THREE.Mesh(sweepArc(r - 0.02, from, to, pillow(0.25, 6.62, 7.02), 180), glow(STUDIO.coral, 1.3)));
-    g.add(new THREE.Mesh(sweepArc(r, from, to, pillow(0.62, 7.08, 8.2), 180), painted("#3a2a9a", 0.32, 0.2, dbl)));
+    g.add(new THREE.Mesh(sweepArc(r, from, to, pillow(0.62, 7.08, 8.2), 180), painted("#3a2a9a", 0.32, 0.2)));
     g.add(new THREE.Mesh(arcTube(r - 0.55, from, to, 5.94, 0.03), glow(STUDIO.violet, 1.7)));
     g.add(new THREE.Mesh(arcTube(r - 0.6, from, to, 8.22, 0.035), glow("#ff8fd8", 1.4)));
     g.add(new THREE.Mesh(arcTube(r - 0.05, from, to, 2.55, 0.025), glow(STUDIO.violet, 1.3)));

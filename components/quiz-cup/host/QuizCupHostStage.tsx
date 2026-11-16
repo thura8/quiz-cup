@@ -110,7 +110,12 @@ const QuizCupHostStage = ({
   // Keyed on plain strings so the arena's players change identity only when a name, status
   // or revealed choice does, not on every parent render (the arena re-lays podiums on a new
   // array). Choices stay hidden until the answer is shown: the room can see this screen.
-  const rosterKey = players.map((p) => `${p.id}\u0001${p.name}`).join("\u0002");
+  // A countdown without a player list keeps the last roster: emptying the stage would tear
+  // down and rebuild every podium and character before each question.
+  const incomingKey = players.map((p) => `${p.id}\u0001${p.name}`).join("\u0002");
+  const [heldKey, setHeldKey] = useState(incomingKey);
+  if (incomingKey && incomingKey !== heldKey) setHeldKey(incomingKey); // adjust during render
+  const rosterKey = incomingKey || (phase === "countdown" ? heldKey : "");
   const statusKey = players
     .map((p) => `${arenaStatus(p, phase, answerShown)}:${answerShown ? (p.choice ?? "") : ""}`)
     .join("|");
@@ -118,7 +123,8 @@ const QuizCupHostStage = ({
     const states = statusKey.split("|");
     return (rosterKey ? rosterKey.split("\u0002") : []).map((entry, i) => {
       const [id, name] = entry.split("\u0001");
-      const [status, choice] = states[i].split(":");
+      // Held roster (no incoming players): everyone idles.
+      const [status, choice] = (states[i] || "idle:").split(":");
       return {
         id,
         name,

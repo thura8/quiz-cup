@@ -232,7 +232,9 @@ export function buildStudioPodium(colours: PodiumColourway = PODIUM_COLOURWAYS[0
   const card = PODIUM_CARD;
   const bezelGeo = extrude(rectRing([card.w + 0.1, card.h + 0.1, 0.07], [card.w + 0.02, card.h + 0.02, 0.035]), 0.03, 0.014, 3);
   add(g, bezelGeo, bezel, [0, sy, sz], "Bezel");
-  add(g, extrude(rectRing([card.w + 0.025, card.h + 0.025, 0.037], [card.w, card.h, 0.025]), 0.004, 0), led("Screen_Border", STUDIO.blue), [0, sy, sz + 0.03], "Screen_Border");
+  // Just proud of the bezel's front face (depth 0.03 + bevel 0.014): any deeper and the bezel's
+  // inward bevel swallows it.
+  add(g, extrude(rectRing([card.w + 0.025, card.h + 0.025, 0.037], [card.w, card.h, 0.025]), 0.004, 0), led("Screen_Border", STUDIO.blue), [0, sy, sz + 0.046], "Screen_Border");
   add(g, new THREE.PlaneGeometry(card.w + 0.02, card.h + 0.02), glass, [0, sy, sz + 0.012], "ScreenGlass");
 
   // drawNameTexture follows the glTF UV convention (flipY = false): flip V to match.
