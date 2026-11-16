@@ -11,8 +11,6 @@ type Props = {
   showLabels?: boolean;
   onLeave?: () => void;
   onLanguageToggle?: () => void;
-  // Host-only: when set, shows a small toggle button that reveals the join
-  // QR code, so a player who loses the mini app mid-game can scan back in.
   qrValue?: string;
 };
 

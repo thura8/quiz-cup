@@ -10,7 +10,6 @@ type Props = {
   className?: string;
 };
 
-// Global mute for every sound in the app; the choice is remembered.
 const SoundToggle = ({ size = "sm", className }: Props) => {
   const [muted, setMuted] = useSoundMuted();
   const Icon = muted ? VolumeX : Volume2;

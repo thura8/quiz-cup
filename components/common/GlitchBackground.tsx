@@ -34,7 +34,6 @@ function TVGlitch({ className }: { className: string }) {
   return <div className={cn("h-2 w-full self-stretch", className)} />;
 }
 
-/** A full-bleed game background with a dimmed TV-scanline overlay. */
 const GlitchBackground = ({ src, imageClassName, children }: Props) => {
   const glitches = Array.from({ length: GLITCH_ROWS });
 

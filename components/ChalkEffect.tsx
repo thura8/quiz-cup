@@ -147,8 +147,6 @@ export const ChalkEffect = forwardRef<HTMLElement, ChalkEffectProps>(
       [filterId, variant],
     );
 
-    // @react-three/fiber adds three.js elements (<mesh> …) to JSX, so rendering a bare
-    // ElementType collapses its props to `never`; render it as a plain HTML component.
     const Element = Tag as FC<HTMLAttributes<HTMLElement> & { ref?: Ref<HTMLElement> }>;
 
     return (

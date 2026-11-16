@@ -1,6 +1,3 @@
-// Shared room shapes used by the common screens (lobby, waiting room, podium).
-// Trimmed from dd-join-joy-frontend: only what the Quiz Cup UI renders.
-
 export type RoomState =
   | "LOBBY"
   | "PREPARING"

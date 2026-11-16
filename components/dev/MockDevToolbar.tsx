@@ -37,10 +37,6 @@ function ToolButton({
   );
 }
 
-/**
- * Floating controls for the mock room. Not part of the product UI: it sits in
- * the bottom-left corner and collapses to a single icon.
- */
 export default function MockDevToolbar({ role, dev }: Props) {
   const [open, setOpen] = useState(false);
 

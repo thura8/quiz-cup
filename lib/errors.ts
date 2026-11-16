@@ -1,4 +1,3 @@
-/** Error shape the UI components expect. The mock engine throws these the way the backend would. */
 export class ApiError extends Error {
   status: number;
   code: string;

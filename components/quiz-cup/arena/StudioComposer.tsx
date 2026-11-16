@@ -10,22 +10,6 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 
-/**
- * Post-processing the way Aetherwyn does it (src/experience/world/postProcessing.ts), on
- * three's own EffectComposer instead of @react-three/postprocessing:
- *
- * - The scene renders into a 4x multisampled half-float target. Edges are anti-aliased
- *   BEFORE bloom, so thin neon lines and specular glints can't flicker from frame to
- *   frame and get blown up into flashes by the bloom (SMAA after bloom was too late).
- *   pmndrs' composer renders black with multisampling on ANGLE/Metal; this target doesn't.
- * - Ambient occlusion is GTAO, toggled with `pass.enabled` (no shader recompile).
- * - A sanitize pass keeps NaN/Inf out of bloom (see SanitizeShader).
- * - A dither pass breaks up 8-bit banding in the dark gradients, which otherwise crawls
- *   as the camera drifts.
- * - OutputPass applies the renderer's ACES tone mapping and sRGB conversion once, at the end.
- */
-
-/** Ambient occlusion for solid set pieces only: glows, beams and sprites are left out. */
 class StudioAOPass extends GTAOPass {
   _overrideVisibility() {
     const hidden = (this as unknown as { _visibilityCache: THREE.Object3D[] })._visibilityCache;
@@ -52,17 +36,11 @@ class StudioAOPass extends GTAOPass {
   }
 }
 
-/**
- * Keeps the HDR buffer finite before bloom. Ambient occlusion writes NaN on some edge
- * pixels (and alpha > 1); a half-float buffer doesn't clamp them, and bloom's blur smears
- * a single NaN across its whole footprint: black blotches or a black frame that come and
- * go as the camera drifts. A bad pixel takes the average of its finite neighbours.
- */
 const SanitizeShader = {
   uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uTexel: { value: new THREE.Vector2(1, 1) } },
   vertexShader:
     "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: /* glsl */ `
+  fragmentShader: `
     uniform sampler2D tDiffuse; uniform vec2 uTexel; varying vec2 vUv;
     bool bad(vec3 c){ return any(isnan(c)) || any(isinf(c)); }
     void main(){
@@ -84,7 +62,7 @@ const DitherShader = {
   uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uTime: { value: 0 } },
   vertexShader:
     "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: /* glsl */ `
+  fragmentShader: `
     uniform sampler2D tDiffuse; uniform float uTime; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -103,9 +81,6 @@ export default function StudioComposer({ ambientOcclusion }: { ambientOcclusion:
   const dpr = useThree((s) => s.viewport.dpr);
 
   const pipeline = useMemo(() => {
-    // Resolve colour only: blitting the multisampled depth buffer along with it comes out
-    // all zeros on ANGLE/Metal (Chrome/Electron on macOS). Nothing after the RenderPass
-    // reads the composer's depth (GTAO renders its own), so there's nothing to resolve.
     const target = new THREE.WebGLRenderTarget(1, 1, {
       type: THREE.HalfFloatType,
       samples: 4,
@@ -130,7 +105,6 @@ export default function StudioComposer({ ambientOcclusion }: { ambientOcclusion:
     const sanitize = new ShaderPass(SanitizeShader);
     composer.addPass(sanitize);
 
-    // Same look as before: only real highlights (LEDs, neon, screen) bloom.
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.5, 0.86));
     const dither = new ShaderPass(DitherShader);
     composer.addPass(dither);
@@ -150,7 +124,6 @@ export default function StudioComposer({ ambientOcclusion }: { ambientOcclusion:
 
   useEffect(() => () => pipeline.composer.dispose(), [pipeline]);
 
-  // Priority 1: this takes over rendering from R3F.
   useFrame((state, delta) => {
     pipeline.dither.uniforms.uTime.value = state.clock.elapsedTime;
     pipeline.composer.render(delta);

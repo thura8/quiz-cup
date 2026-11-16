@@ -5,10 +5,6 @@ import type { QuizCupArenaPlayer } from "@/types/quiz-cup";
 import { Check, X } from "lucide-react";
 import { StudioLetter } from "../host/HostQuestionBoard";
 
-/**
- * What a player did, over their head: "answered" while the question is open (never the
- * choice itself — the room can see this screen), then their letter and verdict.
- */
 export default function PlayerTag({ player }: { player: QuizCupArenaPlayer }) {
   const { status, choice } = player;
 

@@ -18,9 +18,7 @@ type Props = {
   backgroundImage: string;
   backgroundGradientDirection?: "0deg" | "180deg";
   roomCode: string;
-  /** Prefills the name, e.g. what a returning guest typed last time. */
   defaultName?: string;
-  /** Hides the camera option for games without an avatar upload API. */
   allowUpload?: boolean;
   submitting?: boolean;
   onSubmit?: (name: string, avatar: SelectedAvatar | null) => void;

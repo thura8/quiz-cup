@@ -15,20 +15,14 @@ type Props = {
   totalRounds: number;
   question: string;
   choices: string[];
-  /** null when the host turned "เฉลยคำตอบ" off: only right/wrong is shown. */
   correctChoice: number | null;
-  /** The server's verdict; needed when correctChoice is hidden. */
   correct?: boolean | null;
-  /** Points from answering fast, shown as its own line. */
   speedBonus?: number;
-  /** What no answer scored on the server (0 if the player had dropped out). */
   missedPoints?: number;
-  /** What this player locked in; null if time ran out first. */
   answer: QuizCupAnswer | null;
   selfName: string;
   selfAvatarSrc: string;
   selfAvatarBg: string;
-  /** Total score after this question. */
   score: number;
   rank?: number | null;
   previousRank?: number | null;

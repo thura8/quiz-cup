@@ -5,7 +5,6 @@ export type PlayOptions = {
   rate?: number;
   bus?: SoundBus;
   at?: number;
-  /** Drop the sound if it would start more than this late (ms). */
   maxDelay?: number;
 };
 
@@ -16,16 +15,12 @@ export type LoopOptions = {
 };
 
 export type MusicOptions = {
-  /** Wall-clock time (Date.now()) the file's first downbeat lands on. */
   at: number;
-  /** Where the first downbeat is in the file (ms). */
   offsetMs?: number;
-  /** One bar at the file's own tempo (ms): each pass repeats on a whole bar. */
   barMs: number;
   rate?: number;
   volume?: number;
   bus?: SoundBus;
-  /** The file couldn't be fetched or decoded (e.g. a bucket without CORS). */
   onError?: (error: unknown) => void;
 };
 
@@ -37,7 +32,6 @@ const MUTE_STORAGE_KEY = "ddjj:sound-muted";
 
 const MAX_LATE_START_MS = 250;
 const METRONOME_LOOKAHEAD_MS = 100;
-/** The next pass of a song is queued this far ahead. */
 const MUSIC_LOOKAHEAD_MS = 2000;
 const NOOP_HANDLE: SoundHandle = { stop: () => {} };
 
@@ -89,9 +83,6 @@ function getContext(): AudioContext | null {
   return ctx;
 }
 
-// Listen from module load, not from the first sound: a context created later
-// without a gesture (e.g. a countdown screen that appears on its own) would
-// stay suspended on Safari until the next tap.
 function installUnlock() {
   if (typeof window === "undefined") return;
   const resume = () => {
@@ -177,6 +168,29 @@ function getNoise(context: AudioContext): AudioBuffer {
   return noiseBuffer;
 }
 
+function playKick(context: AudioContext, gain: GainNode, when: number, volume: number) {
+  const oscillator = context.createOscillator();
+  oscillator.frequency.setValueAtTime(150, when);
+  oscillator.frequency.exponentialRampToValueAtTime(40, when + 0.12);
+  gain.gain.setValueAtTime(0.24 * volume, when);
+  gain.gain.exponentialRampToValueAtTime(0.001, when + 0.2);
+  oscillator.connect(gain);
+  oscillator.start(when);
+  oscillator.stop(when + 0.2);
+  return oscillator;
+}
+
+function playHat(context: AudioContext, gain: GainNode, when: number, volume: number) {
+  const noise = context.createBufferSource();
+  noise.buffer = getNoise(context);
+  gain.gain.setValueAtTime(0.12 * volume, when);
+  gain.gain.exponentialRampToValueAtTime(0.001, when + 0.08);
+  noise.connect(gain);
+  noise.start(when);
+  noise.stop(when + 0.1);
+  return noise;
+}
+
 function stopNode(
   context: AudioContext,
   source: AudioBufferSourceNode,
@@ -192,9 +206,7 @@ function stopNode(
     } else {
       source.stop();
     }
-  } catch {
-    // Already stopped.
-  }
+  } catch {}
 }
 
 export const sound = {
@@ -276,12 +288,6 @@ export const sound = {
     };
   },
 
-  /**
-   * Plays the whole file again and again on a bar grid: the next pass's first
-   * downbeat comes a whole number of bars after this one's, so the beat never
-   * slips (a pass's tail rings on under the next pickup). Joins late on the grid
-   * if the file is still loading when `at` passes.
-   */
   music(
     src: string,
     {
@@ -351,11 +357,6 @@ export const sound = {
     };
   },
 
-  /**
-   * Looping track streamed from an <audio> element instead of decoded into
-   * memory — use for long BGM (a 3-minute song decodes to ~60MB of PCM).
-   * Still routed through the music bus, so mute and bus volume apply.
-   */
   stream(src: string, options: LoopOptions = {}): SoundHandle {
     const context = getContext();
     if (!context) return NOOP_HANDLE;
@@ -372,7 +373,6 @@ export const sound = {
 
     let started = false;
     let stopped = false;
-    // Autoplay can reject until the first gesture; retry once audio unlocks.
     const tryPlay = () => {
       if (started || stopped) return;
       audio
@@ -430,17 +430,10 @@ export const sound = {
     const timers: ReturnType<typeof setTimeout>[] = [];
     const handles: SoundHandle[] = [];
 
-    for (let b = 0; b < beats; b++) {
-      const beatAt = b * beatMs;
-      timers.push(
-        setTimeout(
-          () =>
-            handles.push(
-              sound.tick(firstIndex + b, { at: startAt + beatAt, volume }),
-            ),
-          Math.max(0, beatAt - METRONOME_LOOKAHEAD_MS),
-        ),
-      );
+    for (let beat = 0; beat < beats; beat++) {
+      const beatOffsetMs = beat * beatMs;
+      const playBeat = () => handles.push(sound.tick(firstIndex + beat, { at: startAt + beatOffsetMs, volume }));
+      timers.push(setTimeout(playBeat, Math.max(0, beatOffsetMs - METRONOME_LOOKAHEAD_MS)));
     }
 
     return {
@@ -470,8 +463,8 @@ export const sound = {
     const handles: SoundHandle[] = [];
 
     if (tickSrc) {
-      for (let s = tickFrom; s >= 1; s--) {
-        const at = endsAt - s * 1000;
+      for (let secondsLeft = tickFrom; secondsLeft >= 1; secondsLeft--) {
+        const at = endsAt - secondsLeft * 1000;
         if (at >= now - 50) {
           handles.push(sound.play(tickSrc, { at, volume: tickVolume }));
         }
@@ -502,27 +495,7 @@ export const sound = {
     const gain = context.createGain();
     gain.connect(buses![bus]);
 
-    let source: AudioScheduledSourceNode;
-    if (index % 2 === 0) {
-      const osc = context.createOscillator();
-      osc.frequency.setValueAtTime(150, when);
-      osc.frequency.exponentialRampToValueAtTime(40, when + 0.12);
-      gain.gain.setValueAtTime(0.24 * volume, when);
-      gain.gain.exponentialRampToValueAtTime(0.001, when + 0.2);
-      osc.connect(gain);
-      osc.start(when);
-      osc.stop(when + 0.2);
-      source = osc;
-    } else {
-      const noise = context.createBufferSource();
-      noise.buffer = getNoise(context);
-      gain.gain.setValueAtTime(0.12 * volume, when);
-      gain.gain.exponentialRampToValueAtTime(0.001, when + 0.08);
-      noise.connect(gain);
-      noise.start(when);
-      noise.stop(when + 0.1);
-      source = noise;
-    }
+    const source = index % 2 === 0 ? playKick(context, gain, when, volume) : playHat(context, gain, when, volume);
     source.addEventListener(
       "ended",
       () => {
@@ -536,9 +509,7 @@ export const sound = {
       stop: () => {
         try {
           source.stop();
-        } catch {
-          // Already stopped.
-        }
+        } catch {}
       },
     };
   },
@@ -555,9 +526,7 @@ export const sound = {
     muted = next;
     try {
       window.localStorage.setItem(MUTE_STORAGE_KEY, next ? "1" : "0");
-    } catch {
-      // Private mode / storage blocked — mute still works for this session.
-    }
+    } catch {}
     if (ctx && master)
       master.gain.setTargetAtTime(next ? 0 : 1, ctx.currentTime, 0.02);
     emit();

@@ -11,7 +11,6 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** Browser connectivity; assumes online during SSR. */
 export function useOnlineStatus(): boolean {
   return useSyncExternalStore(
     subscribe,

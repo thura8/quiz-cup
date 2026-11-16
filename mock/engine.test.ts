@@ -36,7 +36,7 @@ describe("mock engine", () => {
     engine.joinAsHuman(room, { name: "ฉัน" });
     const now = 0;
     engine.startGame(room, { ...settings, speedBonus: false }, now);
-    engine.tick(room, 3000); // into PLAYING
+    engine.tick(room, 3000);
     const right = room.questions[0].correct;
     engine.submitAnswer(room, "me", 1, { choice: right, wager: 20, tactic: "double" }, 4000);
     engine.tick(room, 4000);

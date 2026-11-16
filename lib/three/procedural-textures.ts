@@ -1,15 +1,5 @@
-/**
- * Procedural surface maps, baked once on a canvas at load.
- *
- * The noise and the height-field → normal-map conversion are ported from Aetherwyn
- * (src/experience/world/proceduralTextures.ts: createTileableNoise, heightFieldToNormalCanvas,
- * toRepeatingTexture). The studio uses them for the two surface qualities the concept art
- * sells: wet, patchy-gloss floors and an "impact-resistant matte" orange-peel on the painted
- * set pieces and podiums.
- */
 import * as THREE from "three";
 
-/** Tileable 2D value noise. The period doubles per octave so fbm stays seamless. */
 function createTileableNoise(seed: number) {
   const hash = (x: number, y: number, period: number) => {
     x = ((x % period) + period) % period;
@@ -88,7 +78,7 @@ function heightFieldToNormalCanvas(heights: Float32Array, size: number, strength
 function toRepeatingTexture(canvas: HTMLCanvasElement) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.colorSpace = THREE.NoColorSpace; // data maps stay linear
+  texture.colorSpace = THREE.NoColorSpace;
   texture.anisotropy = 8;
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
@@ -115,10 +105,6 @@ function cached(key: string, make: () => SurfaceMaps) {
   return maps;
 }
 
-/**
- * Wet studio floor: broad patches of mirror-gloss and drier sheen (roughness), with faint
- * swirl / scuff relief (normal). Roughness multiplies the material's own value.
- */
 export function wetFloorMaps(size = 512, seed = 11): SurfaceMaps {
   return cached(`wet:${size}:${seed}`, () => {
     const noise = createTileableNoise(seed);
@@ -131,7 +117,6 @@ export function wetFloorMaps(size = 512, seed = 11): SurfaceMaps {
         const v = y / size;
         const patches = noise.fbm(u, v, 3, 5);
         const i = y * size + x;
-        // Wet where the patch field is high: much glossier there.
         const wet = Math.min(1, Math.max(0, (patches - 0.45) / 0.18));
         rough[i] = 0.95 - wet * 0.65 + (fine.fbm(u, v, 16, 3) - 0.5) * 0.12;
         heights[i] = fine.fbm(u, v, 24, 4) * 0.6 + patches * 0.4;
@@ -144,7 +129,6 @@ export function wetFloorMaps(size = 512, seed = 11): SurfaceMaps {
   });
 }
 
-/** "Impact-resistant matte" paint: a fine orange-peel relief and slight sheen variation. */
 export function mattePaintMaps(size = 256, seed = 5): SurfaceMaps {
   return cached(`matte:${size}:${seed}`, () => {
     const noise = createTileableNoise(seed);
@@ -166,10 +150,8 @@ export function mattePaintMaps(size = 256, seed = 5): SurfaceMaps {
   });
 }
 
-/** Adds the matte paint maps to a standard material (shared textures, small normal scale). */
 export function withMattePaint<T extends THREE.MeshStandardMaterial>(material: T, repeat = 3, normalScale = 0.35): T {
   const { normal, roughness } = mattePaintMaps();
-  // Per-material repeat needs its own texture objects (they share the image).
   const n = normal.clone();
   const r = roughness.clone();
   n.repeat.set(repeat, repeat);

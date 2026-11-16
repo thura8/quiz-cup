@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-/** A hand-drawn chalk outline laid over its positioned parent. */
 export function ChalkFrame({
   active = false,
   className,
@@ -40,7 +39,6 @@ export function ChalkIcon({
   );
 }
 
-/** A dimmed, chalk-outlined panel — the base surface of every Quiz Cup screen. */
 export function Board({
   children,
   className,
@@ -61,7 +59,6 @@ export function Board({
   );
 }
 
-/** Three rising bars, the first `filled` lit in chalk yellow. */
 export function DifficultyBars({ filled }: { filled: number }) {
   return (
     <span aria-hidden className="flex h-4 items-end gap-0.5">
@@ -81,7 +78,6 @@ export function DifficultyBars({ filled }: { filled: number }) {
 
 export const CHOICE_LETTERS = ["A", "B", "C", "D"];
 
-/** Each choice keeps its own chalk colour on every screen. */
 export const CHOICE_COLORS = [
   {
     ring: "border-highlight-blue bg-highlight-blue/15",
@@ -101,7 +97,6 @@ export const CHOICE_COLORS = [
   },
 ];
 
-/** The chalk-circled A–D letter in front of a choice. */
 export function ChoiceBadge({
   index,
   className,

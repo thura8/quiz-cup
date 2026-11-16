@@ -15,7 +15,6 @@ type Props = {
   className?: string;
 };
 
-/** The phone's "me" strip: who I am, which question, and my running score. */
 const QuizCupPlayerBar = ({
   name,
   avatarSrc,

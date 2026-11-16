@@ -26,7 +26,6 @@ type Props = {
   onClose?: () => void;
   onBack?: () => void;
   onStart?: () => Promise<void>;
-  /** Set while the game can't start yet: shown above the disabled button. An empty room blocks on its own. */
   startBlockedReason?: string | null;
   hostToken?: string | null;
   getEmojiReactions?: GetEmojiReactions;
@@ -167,7 +166,6 @@ const JoinRoom = ({
                   </span>
                 </div>
 
-                {/* QR Code */}
                 <div className="flex h-fit flex-1 flex-col items-center justify-between gap-1 rounded-3xl border-4 border-black px-3 py-4">
                   <div className="flex aspect-square w-full items-center justify-center overflow-hidden bg-white">
                     <QRCode
@@ -211,17 +209,9 @@ const JoinRoom = ({
                 </Button>
               )}
 
-              {/* <Button
-                size="lg"
-                className="max-w-sm min-w-full rounded-full bg-[#929391] px-10 py-6 text-white hover:bg-white/90"
-                onClick={onClose}
-              >
-                ปิดห้อง
-              </Button> */}
             </div>
           </div>
         </div>
-        {/* Floating avatars */}
         <FloatingAvatars
           players={players}
           roomId={roomCode}

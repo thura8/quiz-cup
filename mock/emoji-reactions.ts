@@ -4,10 +4,6 @@ import { MOCK_BOT_NAMES } from "./players";
 
 let counter = 0;
 
-/**
- * Stands in for GET /rooms/:id/emoji: now and then a bot sends a reaction, so
- * the floating-avatar bubbles on the host lobby have something to show.
- */
 export async function getMockEmojiReactions(
   _roomId: string,
   _hostToken: string,
@@ -16,7 +12,6 @@ export async function getMockEmojiReactions(
   void _roomId;
   void _hostToken;
   const reactions: EmojiReaction[] = [];
-  // The first call only sets the cursor, like the real endpoint.
   if (after && Math.random() < 0.35) {
     const i = Math.floor(Math.random() * 4);
     counter += 1;

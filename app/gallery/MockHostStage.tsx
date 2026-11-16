@@ -74,22 +74,18 @@ function Chips<T extends string>({
   );
 }
 
-/** The host playing screen running on its own: countdown → question → reveal → next round. */
 export default function MockHostStage({ onFinish }: { onFinish: () => void }) {
   const [count, setCount] = useState(6);
   const [quality, setQuality] = useState<ArenaQuality | "auto">("auto");
   const [show, setShow] = useState<Show>(() => ({ phase: "countdown", round: 1, endsAt: "", answered: [] }));
   const [panelOpen, setPanelOpen] = useState(true);
-  // Freezes the show on the current phase (for looking at one camera shot).
   const [paused, setPaused] = useState(false);
 
-  // Kick off on mount (the clock can't be read during render).
   useEffect(() => {
     const timer = setTimeout(() => setShow(start("countdown", 1)), 0);
     return () => clearTimeout(timer);
   }, []);
 
-  // Countdown and question run out on their own; the reveal waits for the host.
   useEffect(() => {
     if (!show.endsAt || paused) return;
     const timer = setTimeout(() => {
@@ -105,8 +101,6 @@ export default function MockHostStage({ onFinish }: { onFinish: () => void }) {
     else setShow(start("countdown", show.round + 1));
   };
 
-  // Players lock in one at a time, in a shuffled order. Odd rounds everyone answers (and the
-  // question closes early); even rounds one player never does, so the clock runs out.
   useEffect(() => {
     if (show.phase !== "question" || paused) return;
     const timer = setInterval(() => {
@@ -119,8 +113,6 @@ export default function MockHostStage({ onFinish }: { onFinish: () => void }) {
     return () => clearInterval(timer);
   }, [show.phase, count, paused]);
 
-  // Everyone has answered: reveal straight away (the backend does this in the real game), after
-  // a beat so the last "answered" pop is heard.
   const allAnswered = show.phase === "question" && show.answered.length >= count;
   useEffect(() => {
     if (!allAnswered || paused) return;
@@ -137,7 +129,6 @@ export default function MockHostStage({ onFinish }: { onFinish: () => void }) {
     () =>
       Array.from({ length: count }, (_, i) => {
         const answered = show.answered.includes(i);
-        // Mock verdicts: every third answering player gets it wrong.
         const wrong = i % 3 === 2;
         const result = !answered ? "missed" : wrong ? "wrong" : "correct";
         const choice = !answered ? null : wrong ? (q.answer + 1 + (i % 3)) % 4 : q.answer;

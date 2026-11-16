@@ -15,7 +15,6 @@ const sriracha = Sriracha({
   variable: "--font-sriracha",
 });
 
-/** Chunky game-show lettering for the host stage (Thai + Latin). */
 const kanit = Kanit({
   subsets: ["latin", "thai"],
   weight: ["600", "800"],

@@ -78,7 +78,6 @@ export const QUIZ_CUP_CATEGORIES: {
 export const QUIZ_CUP_DIFFICULTIES: {
   id: QuizCupDifficultyId;
   label: string;
-  /** How many of the three bars are filled. */
   bars: number;
 }[] = [
   { id: "easy", label: "ง่าย", bars: 1 },
@@ -86,11 +85,9 @@ export const QUIZ_CUP_DIFFICULTIES: {
   { id: "hard", label: "ยาก", bars: 3 },
 ];
 
-/** The settings board's choices: every level, plus an equal mix of all three. */
 export const QUIZ_CUP_DIFFICULTY_SETTINGS: {
   id: QuizCupDifficultySetting;
   label: string;
-  /** Bars to fill; null for "random", which shows a shuffle icon instead. */
   bars: number | null;
 }[] = [
   ...QUIZ_CUP_DIFFICULTIES,
@@ -116,7 +113,6 @@ export const QUIZ_CUP_TACTICS: {
   label: string;
   description: string;
   icon: LucideIcon;
-  /** Energy spent when the answer is confirmed. */
   cost: number;
 }[] = [
   {
@@ -142,22 +138,12 @@ export const QUIZ_CUP_TACTICS: {
   },
 ];
 
-/** Extra points staked on an answer: won if right, lost if wrong. */
 export const QUIZ_CUP_WAGERS = [0, 10, 20] as const;
 
-/** Points for a correct answer before the wager and tactics apply. */
 export const QUIZ_CUP_BASE_POINTS = 10;
 
-/**
- * Lost for a wrong answer, and for no answer while connected. Equal to the
- * base points, so double and shield break even at 50% confidence.
- */
 export const QUIZ_CUP_MISS_PENALTY = 10;
 
-/**
- * What an answer can win or lose. Double Down doubles everything won; Shield
- * cancels everything lost.
- */
 export function quizCupOutcome({
   wager,
   tactic,
@@ -173,11 +159,6 @@ export function quizCupOutcome({
   };
 }
 
-/**
- * Energy each player starts with; every tactic spends some of it. 3 under 10
- * questions, then +1 every 5 questions.
- * 5–9 → 3, 10–14 → 4, 15–19 → 5, 20–24 → 6, … 50 → 12.
- */
 export function quizCupStartingEnergy(questionCount: number): number {
   return Math.max(3, 2 + Math.floor(questionCount / 5));
 }
@@ -209,7 +190,6 @@ export function quizCupBreakdown({
   wager: number;
   tactic: QuizCupTacticId | null;
   basePoints?: number;
-  /** What no answer scored; 0 for a player who had dropped out. */
   missedPoints?: number;
 }): { label: string; points: number }[] {
   if (correct == null) return [{ label: "ไม่ได้ตอบ", points: missedPoints }];
@@ -231,7 +211,6 @@ export function quizCupBreakdown({
   return lines;
 }
 
-/** Host-screen sound effects (scripts/generate-quiz-cup-sfx.mjs). */
 export const QUIZ_CUP_SOUNDS = {
   go: "/sounds/quiz-cup/go.wav",
   question: "/sounds/quiz-cup/question.wav",

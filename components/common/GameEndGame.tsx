@@ -21,21 +21,16 @@ import LeaderboardList, {
 } from "./LeaderboardList";
 
 type Props = {
-  /** The game's themed background, rendered behind everything. */
   background: ReactNode;
-  /** Game logo shown beside the podium. */
   logoSrc?: string;
   leaderboard: LeaderboardEntry[];
   playerDirectory: PlayerDirectory;
   role: "host" | "player";
-  /** The player holding this phone; phones show only their rank. */
   selfId?: string;
   onCloseRoom?: () => Promise<void>;
   qrValue?: string;
   onLeave?: () => void;
-  /** Plays the background music (off on Cooking AMA's phones). */
   music?: boolean;
-  /** Host-only extra panel, e.g. the recorded clip's QR code. */
   clipSlot?: ReactNode;
 };
 
@@ -179,7 +174,6 @@ const GameEndGame = ({
                 ประกาศผู้ชนะ
               </Button>
             ) : (
-              // Nobody to announce — keep a way out for the host.
               closeRoomButton
             )}
           </div>

@@ -8,11 +8,9 @@ import { CHOICE_LETTERS, DifficultyBars } from "../QuizCupChalk";
 
 type Props = {
   question: QuizCupHostQuestion;
-  /** Shown once revealed: the right choice lights up, the rest fade. */
   correctChoice?: number | null;
 };
 
-/** Same A–D colours as the players' phones, so the room can match tile ↔ button. */
 const LETTER_STYLES = [
   "from-[#7fb2ff] to-[#2f6bff] shadow-[0_0_14px_rgb(63,130,255,0.7)]",
   "from-[#ff9ccc] to-[#ff3d96] shadow-[0_0_14px_rgb(255,61,150,0.7)]",
@@ -59,7 +57,6 @@ function Header({ question }: { question: QuizCupHostQuestion }) {
   );
 }
 
-/** The question as a big studio panel over the top of the arena, with its four choices. */
 export const HostQuestionBoard = ({ question, correctChoice = null }: Props) => {
   const revealed = correctChoice != null;
   return (
@@ -88,7 +85,6 @@ export const HostQuestionBoard = ({ question, correctChoice = null }: Props) => 
   );
 };
 
-/** After the reveal: question and answer as a slim banner, leaving the arena to the camera. */
 export const HostAnswerBanner = ({
   question,
   correctChoice,

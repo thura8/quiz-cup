@@ -18,7 +18,6 @@ import RoughText from "./RoughText";
 const SENDABLE_EMOJI_COUNT = 5;
 
 type Props = {
-  /** The game's themed background, rendered behind everything. */
   background: ReactNode;
   logoSrc: string;
   logoAlt?: string;

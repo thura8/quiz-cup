@@ -2,7 +2,6 @@ import * as THREE from "three";
 
 import type { QuizCupArenaPlayerStatus } from "@/types/quiz-cup";
 
-// Bones from create_player01.py; GLTFLoader strips the "." ("UpperArm.L" -> "UpperArmL").
 const BONES = [
   "Hips",
   "Spine",
@@ -17,8 +16,6 @@ const BONES = [
 type Bone = (typeof BONES)[number];
 type Pose = Partial<Record<Bone, [number, number, number]>>;
 
-// Euler offsets in the character's own frame (faces +Z, left = +X): +X leans forward / swings an
-// arm back, +Z raises the left arm out to the side (the right arm uses -Z).
 const READY: Pose = {
   Spine: [0.04, 0, 0],
   UpperArmL: [-0.55, 0, 0],
@@ -68,7 +65,6 @@ const POSES: Record<QuizCupArenaPlayerStatus, Pose> = {
   },
 };
 
-// Shape keys on Player01_Head / _Eyes / _Eyebrows; Neutral = all 0.
 const EXPRESSION: Record<QuizCupArenaPlayerStatus, string | null> = {
   idle: "Smile",
   thinking: "Thinking",
@@ -79,13 +75,12 @@ const EXPRESSION: Record<QuizCupArenaPlayerStatus, string | null> = {
 };
 const BLINK = "Blink";
 
-const POSE_RATE = 7; // 1/s; ~0.3 s to settle
+const POSE_RATE = 7;
 const FACE_RATE = 10;
 
 type BoneState = {
   bone: THREE.Bone;
   rest: THREE.Quaternion;
-  /** Parent's rest world rotation relative to the character root, and its inverse. */
   parent: THREE.Quaternion;
   parentInverse: THREE.Quaternion;
   current: THREE.Vector3;
@@ -95,11 +90,8 @@ const euler = new THREE.Euler();
 const offset = new THREE.Quaternion();
 const target = new THREE.Vector3();
 
-/** Procedural idle, reactions and face for one cloned player01. Allocation-free per frame. */
 export class PlayerRig {
   private bones: BoneState[] = [];
-  /** Shape key names shared by every face mesh, their smoothed weights, and per mesh the
-   *  influence index of each name (-1 when that mesh lacks it). */
   private names: string[] = [];
   private weights = new Float32Array(0);
   private morphs: { influences: number[]; index: Int16Array }[] = [];
@@ -146,7 +138,6 @@ export class PlayerRig {
     }));
   }
 
-  /** Deterministic per-player jitter (LCG) so the six players never blink in sync. */
   private rand() {
     this.random = (this.random * 1664525 + 1013904223) % 4294967296;
     return this.random / 4294967296;
@@ -161,7 +152,6 @@ export class PlayerRig {
       const name = b.bone.name as Bone;
       const p = pose[name];
       target.set(p?.[0] ?? 0, p?.[1] ?? 0, p?.[2] ?? 0);
-      // Life on top of the pose: breathing, a little sway, the head looking around.
       if (name === "Chest") target.x += 0.025 * Math.sin(t * 1.7 + s);
       if (name === "Spine") target.z += 0.02 * Math.sin(t * 0.45 + s);
       if (name === "Head") {
@@ -173,7 +163,6 @@ export class PlayerRig {
       }
       b.current.lerp(target, k);
 
-      // Rotate in character space about the bone's own pivot: local' = P^-1 * W * P * rest.
       offset.setFromEuler(euler.set(b.current.x, b.current.y, b.current.z));
       b.bone.quaternion.copy(b.parentInverse).multiply(offset).multiply(b.parent).multiply(b.rest);
     }

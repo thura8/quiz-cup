@@ -20,7 +20,6 @@ type Props = {
   rank: number;
   totalPlayers: number;
   score: number;
-  /** Every question in order, as this player played it. */
   results: QuizCupQuestionResult[];
   onDone?: () => void;
   onLeave?: () => void;
@@ -65,7 +64,6 @@ function Stat({
   );
 }
 
-/** What each tactic actually did across the game. */
 function tacticImpact(results: QuizCupQuestionResult[]) {
   return QUIZ_CUP_TACTICS.map((tactic) => {
     const used = results.filter((r) => r.tactic === tactic.id);

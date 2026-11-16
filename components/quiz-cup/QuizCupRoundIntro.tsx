@@ -19,9 +19,7 @@ type Props = {
   totalRounds: number;
   category: QuizCupCategoryId;
   difficulty: QuizCupDifficultyId;
-  /** When the question appears; the ring drains until then. */
   startsAt: string;
-  /** Length of the countdown, for the ring. */
   durationSeconds?: number;
   selfName: string;
   selfAvatarSrc: string;
@@ -56,8 +54,6 @@ const QuizCupRoundIntro = ({
   onLeave,
 }: Props) => {
   const totalMs = durationSeconds * 1000;
-  // Start full so server and client render the same frame; the first tick
-  // syncs to the real clock.
   const [remainingMs, setRemainingMs] = useState(totalMs);
 
   useEffect(() => {

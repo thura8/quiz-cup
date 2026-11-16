@@ -10,7 +10,6 @@ function hashToIndex(id: string, length: number): number {
   return hash % length;
 }
 
-// The backend stores system presets as "/avatar-xxx.png"; the files live in public/avatar/.
 function resolvePresetSrc(avatar: string | null): string | null {
   if (!avatar) return null;
   return /^\/avatar-[a-z]+\.png$/.test(avatar) ? `/avatar${avatar}` : avatar;

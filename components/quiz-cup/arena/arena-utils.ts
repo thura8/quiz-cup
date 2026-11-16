@@ -7,7 +7,6 @@ type LitMaterial = THREE.MeshStandardMaterial;
 
 const KEEP_ATTRIBUTES = ["position", "normal", "uv", "uv1", "color"];
 
-/** Float copy of an attribute: meshopt-quantised (normalised int) data can't be transformed in place. */
 function toFloat(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
   const out = new Float32Array(attr.count * attr.itemSize);
   for (let i = 0; i < attr.count; i++) {
@@ -30,11 +29,6 @@ function bakedGeometry(mesh: THREE.Mesh, toRoot: THREE.Matrix4) {
   return geometry;
 }
 
-/**
- * Collapses every static mesh under `root` into one mesh per material (world transforms baked
- * in), so a piece with hundreds of nodes costs a handful of draw calls. Skinned / instanced
- * meshes and anything `keep` matches are left out and returned untouched.
- */
 export function mergeByMaterial(
   root: THREE.Object3D,
   keep: (mesh: THREE.Mesh) => boolean = () => false,
@@ -75,8 +69,6 @@ export function mergeByMaterial(
   return { merged, kept };
 }
 
-/** Children of a static group skip the per-frame local matrix recompute; the root stays
- *  placeable (R3F position props) and world matrices still follow it. */
 export function freeze(root: THREE.Object3D) {
   root.traverse((o) => {
     if (o === root) return;
@@ -98,10 +90,6 @@ export function eachMaterial(root: THREE.Object3D, fn: (material: LitMaterial) =
   });
 }
 
-/**
- * LED strip look without relying on bloom: emissive only and not tone-mapped, so each strip
- * keeps its exact colour (env reflections + ACES would wash it out to pastel).
- */
 export function setupLed(material: LitMaterial, color?: THREE.ColorRepresentation, intensity = 1) {
   material.color.set(0x000000);
   material.envMapIntensity = 0;
@@ -110,11 +98,6 @@ export function setupLed(material: LitMaterial, color?: THREE.ColorRepresentatio
   material.emissiveIntensity = intensity;
 }
 
-/**
- * Recolours a GLB material for the studio look (constants/quiz-cup-studio.ts), by name.
- * Idempotent, so it is safe on useGLTF's cached (shared) materials. Returns true when the
- * material became an LED strip.
- */
 export function applyStudioSurface(material: LitMaterial): boolean {
   const rule = STUDIO_SURFACES.find(([pattern]) => pattern.test(material.name))?.[1];
   if (!rule) return false;
@@ -135,10 +118,6 @@ export function applyStudioSurface(material: LitMaterial): boolean {
 
 export const isLedMaterial = (m: THREE.Material) => /LED/.test(m.name);
 
-/**
- * Baked irradiance on UV1. Three's Lambert divides irradiance by PI while Cycles' diffuse light
- * pass does not, hence scale * PI. Env diffuse would light these twice, so it is kept faint.
- */
 export function applyLightmap(material: LitMaterial, texture: THREE.Texture, scale: number) {
   material.lightMap = texture;
   material.lightMapIntensity = scale * Math.PI;
@@ -147,7 +126,7 @@ export function applyLightmap(material: LitMaterial, texture: THREE.Texture, sca
 }
 
 export function prepareLightmapTexture(texture: THREE.Texture) {
-  texture.flipY = false; // glTF UV convention
+  texture.flipY = false;
   texture.channel = 1;
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.generateMipmaps = true;
@@ -156,10 +135,9 @@ export function prepareLightmapTexture(texture: THREE.Texture) {
   return texture;
 }
 
-const NAME_W = 768; // landscape: matches the podium screen (PODIUM_CARD, 0.46 × 0.2875)
+const NAME_W = 768;
 const NAME_H = 480;
 
-/** Player card for a contestant podium screen, drawn in the page's own font. */
 export function drawNameTexture(label: string, fontFamily: string) {
   const canvas = document.createElement("canvas");
   canvas.width = NAME_W;
@@ -171,11 +149,9 @@ export function drawNameTexture(label: string, fontFamily: string) {
   g.addColorStop(1, "#120836");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, NAME_W, NAME_H);
-  // Faint scan lines, like the screen module on the concept sheet.
   ctx.fillStyle = "rgba(255,255,255,0.04)";
   for (let y = 0; y < NAME_H; y += 6) ctx.fillRect(0, y, NAME_W, 2);
 
-  // Cream-to-gold name with a deep purple edge.
   const text = ctx.createLinearGradient(0, NAME_H / 2 - 110, 0, NAME_H / 2 + 110);
   text.addColorStop(0, "#fff6e0");
   text.addColorStop(1, "#ffc04a");
@@ -195,7 +171,7 @@ export function drawNameTexture(label: string, fontFamily: string) {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.flipY = false; // glTF UV convention
+  texture.flipY = false;
   texture.anisotropy = 8;
   return texture;
 }

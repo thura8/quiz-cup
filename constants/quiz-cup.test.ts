@@ -4,7 +4,6 @@ import { quizCupBreakdown, quizCupOutcome } from "./quiz-cup";
 const sum = (lines: { points: number }[]) =>
   lines.reduce((total, line) => total + line.points, 0);
 
-// Copied from dd-join-joy-frontend: must match the backend's scoring (and mock/engine.ts).
 describe("quizCupOutcome", () => {
   it("loses 10 plus the wager when wrong", () => {
     expect(quizCupOutcome({ wager: 0, tactic: null })).toEqual({ ifRight: 10, ifWrong: 10 });

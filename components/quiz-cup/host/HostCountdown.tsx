@@ -9,15 +9,12 @@ import { DifficultyBars } from "../QuizCupChalk";
 const TICK_MS = 100;
 
 type Props = {
-  /** When the question appears. */
   startsAt: string;
   durationSeconds: number;
   question: QuizCupHostQuestion;
-  /** The very first question: introduce the game instead of the next round. */
   firstRound: boolean;
 };
 
-/** Full-screen 3-2-1 before a question, over the arena. */
 const HostCountdown = ({ startsAt, durationSeconds, question, firstRound }: Props) => {
   const [remainingMs, setRemainingMs] = useState(durationSeconds * 1000);
 

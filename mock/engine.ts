@@ -1,14 +1,3 @@
-/**
- * In-browser stand-in for the Quiz Cup backend.
- *
- * It runs the same room state machine (LOBBY → PREPARING → PLAYING →
- * ROUND_RESULT → … → FINISHED), applies the same scoring rules as
- * constants/quiz-cup.ts, and builds the exact view shapes in
- * types/quiz-cup-room.ts, so the UI components run unchanged.
- *
- * Everything here is plain data + pure-ish functions over a mutable
- * `MockRoom`; React wiring lives in hooks/quiz-cup/useMockQuizCupRoom.ts.
- */
 import { AVATAR_COLORS } from "@/constants/avatar";
 import {
   QUIZ_CUP_BASE_POINTS,
@@ -17,106 +6,28 @@ import {
   quizCupStartingEnergy,
 } from "@/constants/quiz-cup";
 import { ApiError } from "@/lib/errors";
-import type {
-  QuizCupDifficultyId,
-  QuizCupQuestionResult,
-  QuizCupSettings,
-  QuizCupTacticId,
-} from "@/types/quiz-cup";
-import type {
-  QuizCupAnswerTactic,
-  QuizCupHostRoomView,
-  QuizCupPlayerRoomView,
-  QuizCupQuestionView,
-  QuizCupRoundOutcome,
-  QuizCupSubmittedAnswer,
-} from "@/types/quiz-cup-room";
-import type { LeaderboardEntry, RoomPlayer, RoomState } from "@/types/room";
+import type { QuizCupDifficultyId, QuizCupSettings, QuizCupTacticId } from "@/types/quiz-cup";
+import type { QuizCupAnswerTactic, QuizCupSubmittedAnswer } from "@/types/quiz-cup-room";
+import type { LeaderboardEntry } from "@/types/room";
+
+import {
+  DEFAULT_ENGINE_OPTIONS,
+  type Bot,
+  type EnginePlayer,
+  type MockEngineOptions,
+  type MockRoom,
+  type PlannedBotAnswer,
+  type PlayedQuestion,
+  type RoundAnswer,
+  type RoundOutcome,
+  findPlayer,
+  iso,
+} from "./engine-model";
 import { MOCK_BOT_NAMES } from "./players";
 import { MOCK_QUESTIONS, type MockQuestion } from "./questions";
 
-// --- Tunables ----------------------------------------------------------------------------
+export { DEFAULT_ENGINE_OPTIONS, type MockEngineOptions, type MockRoom };
 
-export type MockEngineOptions = {
-  /** Seconds of 3-2-1 before each question. */
-  preparingSeconds: number;
-  /** Server-side grace after roundEndsAt for answers already in flight. */
-  answerGraceMs: number;
-  /** Max points from answering fast (only when settings.speedBonus is on). */
-  speedBonusMax: number;
-  /** ROUND_RESULT moves on by itself after this long; null waits for the host. */
-  autoAdvanceMs: number | null;
-  /** Bots answer at all (turn off to watch the timer run out). */
-  botsAnswer: boolean;
-};
-
-export const DEFAULT_ENGINE_OPTIONS: MockEngineOptions = {
-  preparingSeconds: 3,
-  answerGraceMs: 500,
-  speedBonusMax: 5,
-  autoAdvanceMs: null,
-  botsAnswer: true,
-};
-
-// --- State -------------------------------------------------------------------------------
-
-type Bot = {
-  /** 0–1: chance of knowing the answer. */
-  skill: number;
-  /** 0–1 of the answering window by which they've usually answered. */
-  pace: number;
-};
-
-type EnginePlayer = RoomPlayer & {
-  bot: Bot | null;
-  energy: number;
-  totalScore: number;
-  /** Rank after the previous revealed question; null before any reveal. */
-  rank: number | null;
-  previousRank: number | null;
-  results: QuizCupQuestionResult[];
-};
-
-type RoundAnswer = QuizCupSubmittedAnswer & { submittedAt: number };
-
-type RoundOutcome = {
-  result: QuizCupRoundOutcome;
-  roundScore: number;
-  speedScore: number;
-};
-
-type PlannedBotAnswer = { at: number; answer: QuizCupSubmittedAnswer };
-
-type PlayedQuestion = MockQuestion & {
-  /** Choices in display order, and where the right one landed. */
-  shown: string[];
-  correct: number;
-};
-
-export type MockRoom = {
-  roomId: string;
-  state: RoomState;
-  settings: QuizCupSettings;
-  options: MockEngineOptions;
-  players: EnginePlayer[];
-  questions: PlayedQuestion[];
-  round: number;
-  phaseStartedAt: number;
-  phaseEndsAt: number;
-  answers: Record<string, RoundAnswer>;
-  fifty: Record<string, number[]>;
-  /** Energy each player had when the current question began. */
-  energyAtRoundStart: Record<string, number>;
-  outcomes: Record<string, RoundOutcome>;
-  botPlan: Record<string, PlannedBotAnswer>;
-  leaderboard: LeaderboardEntry[];
-  /** Deterministic RNG so a reload with the same seed replays the same game. */
-  rand: () => number;
-};
-
-// --- Helpers -----------------------------------------------------------------------------
-
-/** mulberry32: tiny seeded PRNG. */
 export function seededRandom(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -137,16 +48,9 @@ function shuffle<T>(items: T[], rand: () => number): T[] {
   return out;
 }
 
-const iso = (ms: number) => new Date(ms).toISOString();
 
 function conflict(message: string, code = "Conflict"): never {
   throw new ApiError(message, 409, code);
-}
-
-function findPlayer(room: MockRoom, playerId: string): EnginePlayer {
-  const player = room.players.find((p) => p.id === playerId);
-  if (!player) throw new ApiError("Player not found", 404, "INVALID_PLAYER");
-  return player;
 }
 
 function rankPlayers(players: EnginePlayer[]): LeaderboardEntry[] {
@@ -154,9 +58,9 @@ function rankPlayers(players: EnginePlayer[]): LeaderboardEntry[] {
     (a, b) => b.totalScore - a.totalScore || a.name.localeCompare(b.name),
   );
   let rank = 0;
-  return sorted.map((p, i) => {
-    if (i === 0 || sorted[i - 1].totalScore !== p.totalScore) rank = i + 1;
-    return { rank, playerId: p.id, name: p.name, totalScore: p.totalScore };
+  return sorted.map((player, i) => {
+    if (i === 0 || sorted[i - 1].totalScore !== player.totalScore) rank = i + 1;
+    return { rank, playerId: player.id, name: player.name, totalScore: player.totalScore };
   });
 }
 
@@ -182,8 +86,6 @@ function makePlayer(
     results: [],
   };
 }
-
-// --- Room lifecycle ----------------------------------------------------------------------
 
 export function createMockRoom({
   roomId = "QC" + Math.floor(1000 + Math.random() * 9000),
@@ -215,21 +117,18 @@ export function createMockRoom({
   };
 }
 
-/** Adds one bot with a random skill; returns its id, or null once the bot names run out. */
 export function addBot(room: MockRoom): string | null {
   if (room.state !== "LOBBY") return null;
   if (room.players.length >= room.settings.maxPlayers) return null;
-  const used = new Set(room.players.map((p) => p.name));
-  const name = MOCK_BOT_NAMES.find((n) => !used.has(n));
+  const usedNames = new Set(room.players.map((player) => player.name));
+  const name = MOCK_BOT_NAMES.find((candidate) => !usedNames.has(candidate));
   if (!name) return null;
-  // Stable ids (bot-1, bot-2, …) so mock emoji reactions can target them.
-  const id = `bot-${room.players.filter((p) => p.bot).length + 1}`;
+  const id = `bot-${room.players.filter((player) => player.bot).length + 1}`;
   const bot = { skill: 0.35 + room.rand() * 0.5, pace: 0.25 + room.rand() * 0.6 };
   room.players.push(makePlayer(id, name, room.players.length, bot));
   return id;
 }
 
-/** The human on this device joining as a player. */
 export function joinAsHuman(
   room: MockRoom,
   { name, avatar, bgColor, border }: { name: string; avatar?: string; bgColor?: string; border?: string },
@@ -241,7 +140,7 @@ export function joinAsHuman(
   if (avatar) player.avatar = avatar;
   if (bgColor) player.bgColor = bgColor;
   if (border) player.border = border;
-  room.players = [player, ...room.players.filter((p) => p.id !== id)];
+  room.players = [player, ...room.players.filter((player) => player.id !== id)];
   return id;
 }
 
@@ -263,8 +162,6 @@ function pickQuestions(room: MockRoom, settings: QuizCupSettings): PlayedQuestio
   for (let i = 0; i < settings.questionCount; i++) {
     const level =
       settings.difficulty === "random" ? levels[i % 3] : settings.difficulty;
-    // Prefer the asked level; the mock bank is small, so fall back to anything
-    // in the chosen categories and repeat once it runs dry.
     const fresh = byLevel(level).filter((q) => !picked.includes(q));
     const anyFresh = pool.filter((q) => !picked.includes(q));
     const from = fresh.length ? fresh : anyFresh.length ? anyFresh : pool;
@@ -283,12 +180,12 @@ export function startGame(room: MockRoom, settings: QuizCupSettings, now = Date.
   room.settings = { ...settings };
   room.questions = pickQuestions(room, settings);
   const energy = quizCupStartingEnergy(settings.questionCount);
-  for (const p of room.players) {
-    p.energy = energy;
-    p.totalScore = 0;
-    p.rank = null;
-    p.previousRank = null;
-    p.results = [];
+  for (const player of room.players) {
+    player.energy = energy;
+    player.totalScore = 0;
+    player.rank = null;
+    player.previousRank = null;
+    player.results = [];
   }
   enterPreparing(room, 1, now);
 }
@@ -308,87 +205,116 @@ function enterPlaying(room: MockRoom, now: number) {
   room.state = "PLAYING";
   room.phaseStartedAt = now;
   room.phaseEndsAt = now + room.settings.secondsPerQuestion * 1000;
-  room.energyAtRoundStart = Object.fromEntries(room.players.map((p) => [p.id, p.energy]));
+  room.energyAtRoundStart = Object.fromEntries(room.players.map((player) => [player.id, player.energy]));
   planBots(room, now);
 }
 
-function planBots(room: MockRoom, now: number) {
-  const q = room.questions[room.round - 1];
+const CHOICE_INDICES = [0, 1, 2, 3];
+const BOT_SKIP_CHANCE = 0.08;
+const BOT_CONFIDENCE_CHANCE = 0.6;
+const BOT_TACTIC_CHANCE = 0.25;
+
+function chooseBotWager(confident: boolean, rand: () => number) {
+  if (confident) return rand() < 0.5 ? 20 : 10;
+  return rand() < 0.2 ? 10 : 0;
+}
+
+function planBotAnswer(room: MockRoom, player: EnginePlayer, bot: Bot, now: number): PlannedBotAnswer {
+  const question = room.questions[room.round - 1];
   const windowMs = room.settings.secondsPerQuestion * 1000;
-  for (const p of room.players) {
-    if (!p.bot) continue;
-    // ~8% of the time a bot just doesn't answer.
-    if (room.rand() < 0.08) continue;
-    const knows = room.rand() < p.bot.skill;
-    const wrong = [0, 1, 2, 3].filter((i) => i !== q.correct);
-    const choice = knows ? q.correct : wrong[Math.floor(room.rand() * wrong.length)];
-    const confident = knows && room.rand() < 0.6;
-    const wager = confident ? (room.rand() < 0.5 ? 20 : 10) : room.rand() < 0.2 ? 10 : 0;
-    let tactic: QuizCupAnswerTactic | null = null;
-    if (p.energy > 0 && room.rand() < 0.25) tactic = confident ? "double" : "shield";
-    const jitter = (room.rand() - 0.5) * 0.3;
-    const at = now + Math.max(0.12, Math.min(0.95, p.bot.pace + jitter)) * windowMs;
-    room.botPlan[p.id] = { at, answer: { choice, wager, tactic } };
+  const knows = room.rand() < bot.skill;
+  const wrongChoices = CHOICE_INDICES.filter((i) => i !== question.correct);
+  const choice = knows ? question.correct : wrongChoices[Math.floor(room.rand() * wrongChoices.length)];
+  const confident = knows && room.rand() < BOT_CONFIDENCE_CHANCE;
+  const wager = chooseBotWager(confident, room.rand);
+  let tactic: QuizCupAnswerTactic | null = null;
+  if (player.energy > 0 && room.rand() < BOT_TACTIC_CHANCE) tactic = confident ? "double" : "shield";
+  const jitter = (room.rand() - 0.5) * 0.3;
+  const at = now + Math.max(0.12, Math.min(0.95, bot.pace + jitter)) * windowMs;
+  return { at, answer: { choice, wager, tactic } };
+}
+
+function planBots(room: MockRoom, now: number) {
+  for (const player of room.players) {
+    if (!player.bot) continue;
+    if (room.rand() < BOT_SKIP_CHANCE) continue;
+    room.botPlan[player.id] = planBotAnswer(room, player, player.bot, now);
+  }
+}
+
+function scoreAnswer(room: MockRoom, player: EnginePlayer, answer: RoundAnswer | undefined): RoundOutcome {
+  const question = room.questions[room.round - 1];
+  if (!answer) {
+    return { result: "missed", roundScore: player.connected ? -QUIZ_CUP_MISS_PENALTY : 0, speedScore: 0 };
+  }
+  if (answer.choice === question.correct) {
+    const windowMs = room.settings.secondsPerQuestion * 1000;
+    const basePoints = (QUIZ_CUP_BASE_POINTS + answer.wager) * (answer.tactic === "double" ? 2 : 1);
+    const timeLeftFraction = Math.max(0, room.phaseEndsAt - answer.submittedAt) / windowMs;
+    const speedScore = room.settings.speedBonus ? Math.round(timeLeftFraction * room.options.speedBonusMax) : 0;
+    return { result: "correct", roundScore: basePoints + speedScore, speedScore };
+  }
+  const loss = answer.tactic === "shield" ? 0 : QUIZ_CUP_MISS_PENALTY + answer.wager;
+  return { result: "wrong", roundScore: -loss, speedScore: 0 };
+}
+
+function recordResult(room: MockRoom, player: EnginePlayer, answer: RoundAnswer | undefined, outcome: RoundOutcome) {
+  const usedFifty = (room.fifty[player.id]?.length ?? 0) > 0;
+  player.results.push({
+    correct: outcome.result === "missed" ? null : outcome.result === "correct",
+    wager: answer?.wager ?? 0,
+    tactic: (answer?.tactic ?? (usedFifty ? "fifty" : null)) as QuizCupTacticId | null,
+  });
+}
+
+function updateRanks(room: MockRoom) {
+  room.leaderboard = rankPlayers(room.players);
+  for (const player of room.players) {
+    const newRank = room.leaderboard.find((entry) => entry.playerId === player.id)!.rank;
+    player.previousRank = player.rank ?? newRank;
+    player.rank = newRank;
   }
 }
 
 function revealRound(room: MockRoom, now: number) {
-  const q = room.questions[room.round - 1];
-  const windowMs = room.settings.secondsPerQuestion * 1000;
-  for (const p of room.players) {
-    const a = room.answers[p.id];
-    const usedFifty = (room.fifty[p.id]?.length ?? 0) > 0;
-    let outcome: RoundOutcome;
-    if (!a) {
-      outcome = { result: "missed", roundScore: p.connected ? -QUIZ_CUP_MISS_PENALTY : 0, speedScore: 0 };
-    } else if (a.choice === q.correct) {
-      const base = (QUIZ_CUP_BASE_POINTS + a.wager) * (a.tactic === "double" ? 2 : 1);
-      const left = Math.max(0, room.phaseEndsAt - a.submittedAt) / windowMs;
-      const speed = room.settings.speedBonus ? Math.round(left * room.options.speedBonusMax) : 0;
-      outcome = { result: "correct", roundScore: base + speed, speedScore: speed };
-    } else {
-      const loss = a.tactic === "shield" ? 0 : QUIZ_CUP_MISS_PENALTY + a.wager;
-      outcome = { result: "wrong", roundScore: -loss, speedScore: 0 };
-    }
-    room.outcomes[p.id] = outcome;
-    p.totalScore += outcome.roundScore;
-    p.results.push({
-      correct: outcome.result === "missed" ? null : outcome.result === "correct",
-      wager: a?.wager ?? 0,
-      tactic: (a?.tactic ?? (usedFifty ? "fifty" : null)) as QuizCupTacticId | null,
-    });
+  for (const player of room.players) {
+    const answer = room.answers[player.id];
+    const outcome = scoreAnswer(room, player, answer);
+    room.outcomes[player.id] = outcome;
+    player.totalScore += outcome.roundScore;
+    recordResult(room, player, answer, outcome);
   }
-  room.leaderboard = rankPlayers(room.players);
-  for (const p of room.players) {
-    p.previousRank = p.rank ?? room.leaderboard.find((e) => e.playerId === p.id)!.rank;
-    p.rank = room.leaderboard.find((e) => e.playerId === p.id)!.rank;
-  }
+  updateRanks(room);
   room.state = "ROUND_RESULT";
   room.phaseStartedAt = now;
   room.phaseEndsAt = room.options.autoAdvanceMs != null ? now + room.options.autoAdvanceMs : Infinity;
 }
 
-/** Advances timers and lets bots act. Call it often (the hook does every 200 ms). */
+function submitDueBotAnswers(room: MockRoom, now: number) {
+  for (const [id, plan] of Object.entries(room.botPlan)) {
+    if (!room.options.botsAnswer || now < plan.at || room.answers[id]) continue;
+    const bot = room.players.find((player) => player.id === id);
+    if (!bot) continue;
+    const tactic = plan.answer.tactic && bot.energy > 0 ? plan.answer.tactic : null;
+    if (tactic) bot.energy -= 1;
+    room.answers[id] = { ...plan.answer, tactic, submittedAt: now };
+  }
+}
+
 export function tick(room: MockRoom, now = Date.now()) {
   if (room.state === "PREPARING" && now >= room.phaseEndsAt) enterPlaying(room, now);
 
   if (room.state === "PLAYING") {
-    for (const [id, plan] of Object.entries(room.botPlan)) {
-      if (!room.options.botsAnswer || now < plan.at || room.answers[id]) continue;
-      const bot = room.players.find((p) => p.id === id);
-      if (!bot) continue;
-      const tactic = plan.answer.tactic && bot.energy > 0 ? plan.answer.tactic : null;
-      if (tactic) bot.energy -= 1;
-      room.answers[id] = { ...plan.answer, tactic, submittedAt: now };
-    }
-    const everyone = room.players.filter((p) => p.connected).every((p) => room.answers[p.id]);
-    if (everyone || now >= room.phaseEndsAt) revealRound(room, Math.min(now, room.phaseEndsAt));
+    submitDueBotAnswers(room, now);
+    const everyoneAnswered = room.players
+      .filter((player) => player.connected)
+      .every((player) => room.answers[player.id]);
+    if (everyoneAnswered || now >= room.phaseEndsAt) revealRound(room, Math.min(now, room.phaseEndsAt));
   }
 
   if (room.state === "ROUND_RESULT" && now >= room.phaseEndsAt) nextRound(room, now);
 }
 
-/** Host's "next": next question, or the final scores after the last. */
 export function nextRound(room: MockRoom, now = Date.now()) {
   if (room.state !== "ROUND_RESULT") conflict("Not in round result");
   if (room.round >= room.questions.length) {
@@ -400,14 +326,11 @@ export function nextRound(room: MockRoom, now = Date.now()) {
   enterPreparing(room, room.round + 1, now);
 }
 
-/** Dev shortcut: end whatever is on a timer right now. */
 export function skipPhase(room: MockRoom, now = Date.now()) {
   if (room.state === "PREPARING") enterPlaying(room, now);
   else if (room.state === "PLAYING") revealRound(room, now);
   else if (room.state === "ROUND_RESULT") nextRound(room, now);
 }
-
-// --- Player actions ----------------------------------------------------------------------
 
 export function submitAnswer(
   room: MockRoom,
@@ -446,174 +369,16 @@ export function requestFifty(room: MockRoom, playerId: string, round: number) {
   if (already) return { hiddenChoices: already, energy: player.energy };
   if (room.answers[playerId]) throw new ApiError("Already submitted", 409, "ALREADY_SUBMITTED");
   if (player.energy < 1) conflict("Not enough energy");
-  const q = room.questions[round - 1];
-  const wrong = shuffle([0, 1, 2, 3].filter((i) => i !== q.correct), room.rand).slice(0, 2);
+  const question = room.questions[round - 1];
+  const removed = shuffle(CHOICE_INDICES.filter((i) => i !== question.correct), room.rand).slice(0, 2);
   player.energy -= 1;
-  room.fifty[playerId] = wrong.sort();
+  room.fifty[playerId] = removed.sort();
   return { hiddenChoices: room.fifty[playerId], energy: player.energy };
 }
 
 export function setConnected(room: MockRoom, playerId: string, connected: boolean) {
-  const p = room.players.find((x) => x.id === playerId);
-  if (p) p.connected = connected;
+  const player = room.players.find((candidate) => candidate.id === playerId);
+  if (player) player.connected = connected;
 }
 
-// --- Views (what GET /rooms/:id would return) --------------------------------------------
-
-function base(room: MockRoom, now: number) {
-  return {
-    roomId: room.roomId,
-    maxPlayers: room.settings.maxPlayers,
-    totalRounds: room.questions.length || room.settings.questionCount,
-    roundDuration: room.settings.secondsPerQuestion,
-    serverTime: iso(now),
-  };
-}
-
-function questionView(room: MockRoom): QuizCupQuestionView {
-  const q = room.questions[room.round - 1];
-  return {
-    round: room.round,
-    totalRounds: room.questions.length,
-    category: q.category,
-    difficulty: q.difficulty,
-    question: q.question,
-    choices: q.shown,
-  };
-}
-
-function lobbyPlayers(room: MockRoom): RoomPlayer[] {
-  return room.players.map(({ id, name, avatar, border, bgColor, connected }) => ({
-    id,
-    name,
-    avatar,
-    border,
-    bgColor,
-    connected,
-  }));
-}
-
-function correctChoice(room: MockRoom) {
-  return room.settings.revealAnswer ? room.questions[room.round - 1].correct : null;
-}
-
-export function hostView(room: MockRoom, now = Date.now()): QuizCupHostRoomView {
-  const b = base(room, now);
-  switch (room.state) {
-    case "LOBBY":
-      return { ...b, state: "LOBBY", players: lobbyPlayers(room) };
-    case "PREPARING": {
-      const q = questionView(room);
-      return {
-        ...b,
-        state: "PREPARING",
-        round: room.round,
-        preparingStartedAt: iso(room.phaseStartedAt),
-        preparingEndsAt: iso(room.phaseEndsAt),
-        question: { round: q.round, totalRounds: q.totalRounds, category: q.category, difficulty: q.difficulty },
-      };
-    }
-    case "PLAYING":
-      return {
-        ...b,
-        state: "PLAYING",
-        round: room.round,
-        roundStartedAt: iso(room.phaseStartedAt),
-        roundEndsAt: iso(room.phaseEndsAt),
-        question: questionView(room),
-        players: room.players.map((p) => ({
-          playerId: p.id,
-          name: p.name,
-          connected: p.connected,
-          answered: Boolean(room.answers[p.id]),
-        })),
-      };
-    case "ROUND_RESULT":
-      return {
-        ...b,
-        state: "ROUND_RESULT",
-        round: room.round,
-        question: questionView(room),
-        correctChoice: correctChoice(room),
-        isLastRound: room.round >= room.questions.length,
-        players: room.players.map((p) => {
-          const o = room.outcomes[p.id];
-          return {
-            playerId: p.id,
-            name: p.name,
-            answered: Boolean(room.answers[p.id]),
-            choice: room.answers[p.id]?.choice ?? null,
-            result: o.result,
-            roundScore: o.roundScore,
-            speedScore: o.speedScore,
-            totalScore: p.totalScore,
-          };
-        }),
-        leaderboard: room.leaderboard,
-      };
-    case "FINISHED":
-      return { ...b, state: "FINISHED", leaderboard: room.leaderboard };
-  }
-}
-
-export function playerView(room: MockRoom, playerId: string, now = Date.now()): QuizCupPlayerRoomView {
-  const b = base(room, now);
-  const p = findPlayer(room, playerId);
-  const standing = {
-    energy: room.state === "PLAYING" ? (room.energyAtRoundStart[p.id] ?? p.energy) : p.energy,
-    maxEnergy: quizCupStartingEnergy(room.settings.questionCount),
-    myScore: p.totalScore,
-    myRank: p.rank,
-  };
-  switch (room.state) {
-    case "LOBBY":
-      return { ...b, state: "LOBBY", players: lobbyPlayers(room) };
-    case "PREPARING": {
-      const h = hostView(room, now);
-      if (h.state !== "PREPARING") throw new Error("unreachable");
-      return { ...h, ...standing };
-    }
-    case "PLAYING": {
-      const a = room.answers[p.id];
-      return {
-        ...b,
-        ...standing,
-        state: "PLAYING",
-        round: room.round,
-        roundStartedAt: iso(room.phaseStartedAt),
-        roundEndsAt: iso(room.phaseEndsAt),
-        question: questionView(room),
-        hiddenChoices: room.fifty[p.id] ?? [],
-        submitted: a ? { choice: a.choice, wager: a.wager, tactic: a.tactic } : null,
-      };
-    }
-    case "ROUND_RESULT": {
-      const a = room.answers[p.id];
-      const o = room.outcomes[p.id];
-      return {
-        ...b,
-        state: "ROUND_RESULT",
-        round: room.round,
-        question: questionView(room),
-        correctChoice: correctChoice(room),
-        isLastRound: room.round >= room.questions.length,
-        myAnswer: a ? { choice: a.choice, wager: a.wager, tactic: a.tactic } : null,
-        myResult: o.result,
-        myRoundScore: o.roundScore,
-        mySpeedScore: o.speedScore,
-        myTotalScore: p.totalScore,
-        myTotalRank: p.rank ?? 1,
-        myPreviousRank: p.previousRank ?? p.rank ?? 1,
-      };
-    }
-    case "FINISHED":
-      return {
-        ...b,
-        state: "FINISHED",
-        myTotalScore: p.totalScore,
-        myTotalRank: p.rank ?? 1,
-        leaderboard: room.leaderboard,
-        results: p.results,
-      };
-  }
-}
+export { hostView, playerView } from "./engine-views";

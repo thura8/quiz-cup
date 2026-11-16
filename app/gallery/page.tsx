@@ -320,7 +320,6 @@ const QuizCupMockPageInner = () => {
       case "end_round":
       case "loading":
       case "background":
-        // TODO: replace with the Quiz Cup screen for this step.
         return <StepPlaceholder step={step} />;
       default:
         return null;

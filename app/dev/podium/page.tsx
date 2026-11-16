@@ -14,7 +14,6 @@ type Status = keyof typeof STUDIO_STATUS_COLORS;
 const STATUSES = Object.keys(STUDIO_STATUS_COLORS) as Status[];
 const STATUS_PARTS = ["ContestantPodium_LED_Top", "ContestantPodium_Screen_Border", "ContestantPodium_LED_Vertical"];
 
-/** One contestant podium with its own materials, so status and name can be set here. */
 function Contestant({ slot, x, status, name }: { slot: number; x: number; status: Status; name: string }) {
   const podium = useMemo(() => {
     const p = studioPodiumTemplate(slot).clone(true);
@@ -48,16 +47,11 @@ function Contestant({ slot, x, status, name }: { slot: number; x: number; status
   return <primitive object={podium} position={[x, 0, 0]} />;
 }
 
-/** Built inside <Canvas> so it only runs in the browser (textures need `document`). */
 function Host() {
   const host = useMemo(() => buildHostPodium(), []);
   return <primitive object={host} position={[1.55, 0, -0.4]} scale={0.78} />;
 }
 
-/**
- * Dev viewer for the studio podiums (not part of the game): orbit with the mouse, switch
- * the contestant status to see the buzzer / screen LEDs change.
- */
 export default function PodiumViewer() {
   const [status, setStatus] = useState<Status>("idle");
 

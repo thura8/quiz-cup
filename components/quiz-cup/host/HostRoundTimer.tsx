@@ -9,16 +9,13 @@ const RING_RADIUS = 88;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 type Props = {
-  /** When answering closes. */
   endsAt: string;
   durationSeconds: number;
   className?: string;
 };
 
-/** Seconds-left ring; ticks on its own so nothing else re-renders with it. */
 const HostRoundTimer = ({ endsAt, durationSeconds, className }: Props) => {
   const totalMs = durationSeconds * 1000;
-  // Start full so server and client render the same frame; the first tick syncs to the clock.
   const [remainingMs, setRemainingMs] = useState(totalMs);
 
   useEffect(() => {
@@ -63,7 +60,6 @@ const HostRoundTimer = ({ endsAt, durationSeconds, className }: Props) => {
           style={{ filter: `drop-shadow(0 0 6px ${urgent ? "#ff4f6d" : "#ffbf47"})` }}
         />
       </svg>
-      {/* The last seconds pop in one by one (keyed), in sync with the beeps. */}
       <span
         key={urgent ? seconds : "calm"}
         className={cn(

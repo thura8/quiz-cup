@@ -43,7 +43,6 @@ export function useEmojiReactions(
           onReactionRef.current(reaction);
         }
       } catch {
-        // Best-effort polling; a transient failure just gets retried next tick.
       } finally {
         if (!cancelled) timer = setTimeout(poll, POLL_INTERVAL_MS);
       }

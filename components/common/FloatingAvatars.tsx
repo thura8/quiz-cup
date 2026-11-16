@@ -77,9 +77,6 @@ type Props = {
   submittedPlayerIds?: string[];
   roomId?: string;
   hostToken?: string | null;
-  // Defaults to Balloon's fetcher so every existing call site keeps working
-  // unchanged — pass a game-specific fetcher (e.g. Where in Thailand's) to
-  // poll that game's own emoji endpoint instead.
   getEmojiReactions?: GetEmojiReactions;
 };
 
@@ -100,8 +97,6 @@ const FloatingAvatars = ({
     playersRef.current = players;
   }, [players]);
 
-  // Attach the reaction icon to the player's existing floating bubble (if
-  // they currently have one on screen) rather than spawning a new one.
   const handleReaction = (reaction: EmojiReaction) => {
     setBubbles((prev) => {
       const target = prev.find(
@@ -138,7 +133,6 @@ const FloatingAvatars = ({
   ): Bubble | null => {
     const available = pool.filter((p) => !excludeIds.has(p.id));
     if (available.length === 0) return null;
-    // Newly joined players show up first when preferred ids are given.
     const preferred = preferIds
       ? available.filter((p) => preferIds.has(p.id))
       : [];
@@ -153,10 +147,6 @@ const FloatingAvatars = ({
     };
   };
 
-  // Player list changed: keep the bubbles already on screen (matched by
-  // stable player id, not array position — the players array order isn't
-  // guaranteed append-only), only add players not seen before, and drop
-  // bubbles whose player is gone.
   const idsKey = players.map((p) => p.id).join(",");
   useEffect(() => {
     const currentIds = new Set(players.map((p) => p.id));

@@ -6,20 +6,14 @@ import type {
 } from "@/types/quiz-cup";
 import type { LeaderboardEntry, RoomPlayer } from "@/types/room";
 
-// What GET /rooms/:id returns for a Quiz Cup room (docs/quiz-cup.md §6 in the
-// backend). Timestamps are ISO strings from the server.
-
 interface QuizCupRoomBase {
   roomId: string;
   maxPlayers: number;
   totalRounds: number;
-  /** Seconds per question. */
   roundDuration: number;
-  /** Server clock when the view was built, for countdown drift. */
   serverTime: string;
 }
 
-/** Tactics sent with an answer; "fifty" has its own endpoint. */
 export type QuizCupAnswerTactic = Exclude<QuizCupTacticId, "fifty">;
 
 export interface QuizCupSubmittedAnswer {
@@ -36,16 +30,13 @@ export interface QuizCupQuestionView {
   category: QuizCupCategoryId;
   difficulty: QuizCupDifficultyId;
   question: string;
-  /** In display order (after shuffling). */
   choices: string[];
 }
 
-/** Score, rank and energy before the current question. */
 export interface QuizCupPlayerStanding {
   energy: number;
   maxEnergy: number;
   myScore: number;
-  /** null before any question has been revealed. */
   myRank: number | null;
 }
 
@@ -96,7 +87,6 @@ interface QuizCupRoundResultBase extends QuizCupRoomBase {
   state: "ROUND_RESULT";
   round: number;
   question: QuizCupQuestionView;
-  /** null when the host turned "เฉลยคำตอบ" off. */
   correctChoice: number | null;
   isLastRound: boolean;
 }

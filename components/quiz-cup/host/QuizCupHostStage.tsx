@@ -20,16 +20,12 @@ import HostCountdown from "./HostCountdown";
 import { HostAnswerBanner, HostQuestionBoard } from "./HostQuestionBoard";
 import HostRoundTimer from "./HostRoundTimer";
 
-// WebGL only exists in the browser; the three.js chunk loads on demand. Memoised so the
-// overlays' clocks never re-render the 3D tree.
 const QuizCupArena = memo(
   dynamic(() => import("@/components/quiz-cup/arena/QuizCupArena"), { ssr: false }),
 );
 
 const PRELOAD = [...Object.values(QUIZ_CUP_SOUNDS), SOUNDS.beep, SOUNDS.timeUp];
 
-// Reveal, in seconds from the reveal starting: drum roll, then the answer on the board, then
-// the board shrinks to a banner and the camera moves in on the podiums and their tags.
 const ANSWER_AT = 1.3;
 const BANNER_AT = 3.4;
 
@@ -37,23 +33,15 @@ export type QuizCupHostStageProps = {
   phase: "countdown" | "question" | "reveal";
   question: QuizCupHostQuestion;
   players: QuizCupHostPlayer[];
-  /** countdown: when the question appears. question: when answering closes. */
   endsAt?: string;
-  /** Length of the current countdown / answering window, for the rings. */
   durationSeconds: number;
-  /** reveal: index of the right choice. */
   correctChoice?: number;
-  /** reveal: the host moves on (next question, or the scores after the last one). Also
-   *  bound to Space / →. Without it the button is hidden and the server drives the pace. */
   onNext?: () => void;
-  /** Closes the room. */
   onLeave?: () => void;
-  /** Join link behind the nav's QR toggle, so a player who drops out can scan back in. */
   qrValue?: string;
   quality?: ArenaQuality;
 };
 
-/** Seconds since `key` last changed, ticking at 4 Hz while `active`. */
 function useStopwatch(key: string, active: boolean) {
   const [clock, setClock] = useState({ key: "", start: 0, now: 0 });
   useEffect(() => {
@@ -81,10 +69,6 @@ function arenaStatus(
   return player.answered ? "answered" : "thinking";
 }
 
-/**
- * The host's playing screen: the 3D arena with the question, the 3-2-1, the round clock and
- * the answer reveal laid over it, and the show's sound.
- */
 const QuizCupHostStage = ({
   phase,
   question,
@@ -100,21 +84,14 @@ const QuizCupHostStage = ({
   usePreloadSounds(PRELOAD);
   useLoopSound(SOUNDS.bgm, { stream: true, volume: 0.18 });
 
-  // --- Reveal sequence -------------------------------------------------------------------
   const revealing = phase === "reveal";
   const elapsed = useStopwatch(`${question.round}`, revealing);
   const answerShown = revealing && elapsed >= ANSWER_AT;
   const compact = revealing && elapsed >= BANNER_AT;
 
-  // --- Arena -----------------------------------------------------------------------------
-  // Keyed on plain strings so the arena's players change identity only when a name, status
-  // or revealed choice does, not on every parent render (the arena re-lays podiums on a new
-  // array). Choices stay hidden until the answer is shown: the room can see this screen.
-  // A countdown without a player list keeps the last roster: emptying the stage would tear
-  // down and rebuild every podium and character before each question.
   const incomingKey = players.map((p) => `${p.id}\u0001${p.name}`).join("\u0002");
   const [heldKey, setHeldKey] = useState(incomingKey);
-  if (incomingKey && incomingKey !== heldKey) setHeldKey(incomingKey); // adjust during render
+  if (incomingKey && incomingKey !== heldKey) setHeldKey(incomingKey);
   const rosterKey = incomingKey || (phase === "countdown" ? heldKey : "");
   const statusKey = players
     .map((p) => `${arenaStatus(p, phase, answerShown)}:${answerShown ? (p.choice ?? "") : ""}`)
@@ -123,7 +100,6 @@ const QuizCupHostStage = ({
     const states = statusKey.split("|");
     return (rosterKey ? rosterKey.split("\u0002") : []).map((entry, i) => {
       const [id, name] = entry.split("\u0001");
-      // Held roster (no incoming players): everyone idles.
       const [status, choice] = (states[i] || "idle:").split(":");
       return {
         id,
@@ -133,7 +109,6 @@ const QuizCupHostStage = ({
       };
     });
   }, [rosterKey, statusKey]);
-  // The reveal keeps the wide shot until the board shrinks out of the way.
   const arenaPhase: QuizCupArenaPhase =
     phase === "countdown"
       ? question.round === 1
@@ -143,7 +118,6 @@ const QuizCupHostStage = ({
         ? "question"
         : phase;
 
-  // --- Sound -----------------------------------------------------------------------------
   useCountdownSound({
     endsAt: phase === "countdown" ? endsAt : null,
     tickFrom: 3,
@@ -169,7 +143,6 @@ const QuizCupHostStage = ({
     if (answerShown) sound.play(QUIZ_CUP_SOUNDS.correct);
   }, [answerShown]);
 
-  // --- Host control ----------------------------------------------------------------------
   const canAdvance = compact && !!onNext;
   const lastRound = question.round >= question.totalRounds;
   useEffect(() => {
@@ -183,7 +156,6 @@ const QuizCupHostStage = ({
     return () => window.removeEventListener("keydown", onKey);
   }, [canAdvance, onNext]);
 
-  // --- Overlays --------------------------------------------------------------------------
   const tally = useMemo(() => {
     const t = { correct: 0, wrong: 0, missed: 0 };
     for (const p of players) t[p.result ?? (p.answered ? "wrong" : "missed")]++;

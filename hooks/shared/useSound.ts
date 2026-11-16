@@ -17,7 +17,6 @@ function useSoundUnlocked() {
   return useSyncExternalStore(sound.subscribe, sound.isUnlocked, () => false);
 }
 
-/** Decodes the given files on mount so later plays start instantly. */
 export function usePreloadSounds(srcs: string[]) {
   const key = srcs.join("|");
   useEffect(() => {
@@ -25,10 +24,6 @@ export function usePreloadSounds(srcs: string[]) {
   }, [key]);
 }
 
-/**
- * Loops a track while mounted (and `enabled`). Pass `stream` for long BGM so
- * it plays from an <audio> element instead of being decoded into memory.
- */
 export function useLoopSound(
   src: string,
   {
@@ -49,9 +44,7 @@ export function useLoopSound(
 }
 
 type CountdownSoundOptions = {
-  /** ISO string or ms timestamp of when the timer hits zero. */
   endsAt: string | number | null | undefined;
-  /** Start ticking this many seconds before the end. */
   tickFrom?: number;
   tickSrc?: string | null;
   timeUpSrc?: string | null;
@@ -60,10 +53,6 @@ type CountdownSoundOptions = {
   enabled?: boolean;
 };
 
-/**
- * Plays a tick for the last few seconds and a time-up sound at zero, timed on
- * the audio clock — no per-second re-render or setInterval needed.
- */
 export function useCountdownSound({
   endsAt,
   tickFrom = 5,
@@ -74,8 +63,6 @@ export function useCountdownSound({
   enabled = true,
 }: CountdownSoundOptions) {
   const muted = useSoundMuted()[0];
-  // Audio scheduled while the context is suspended would play late once it
-  // unlocks, so reschedule when the unlock / mute state changes.
   const unlocked = useSoundUnlocked();
   const endsAtMs =
     endsAt == null

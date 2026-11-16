@@ -30,11 +30,6 @@ export function mapErrorMessage(code: string): string {
   return ERROR_MESSAGES[code] ?? GENERIC_ERROR_MESSAGE;
 }
 
-// "Conflict" (409, a host action attempted from the wrong room state — e.g. a
-// double-tapped "start game"/"next round"/"close room") and "GAME_FINISHED" are
-// deliberately absent from ERROR_MESSAGES above: they're meant to be silent
-// no-ops, since the UI self-corrects on the next poll. Call sites for host
-// actions should check this before falling back to a toast.
 export function isBenignConflict(code: string): boolean {
   return code === "Conflict" || code === "GAME_FINISHED";
 }
