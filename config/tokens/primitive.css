@@ -1,0 +1,105 @@
+:root {
+  --base-white: oklch(1 0 0);
+  --base-black: oklch(0 0 0);
+  --base-transparent: oklch(1 0 0 / 0); /* #FFFFFF 0% */
+
+  /* Typography — matches Figma "Content" + "Heading" type scale (Mode 1.tokens 2) */
+  --primitive-typography-caption-size: 12px;
+  --primitive-typography-caption-line-height: 18px;
+
+  --primitive-typography-body-2-size: 14px;
+  --primitive-typography-body-2-line-height: 20px;
+
+  --primitive-typography-body-1-size: 16px;
+  --primitive-typography-body-1-line-height: 24px;
+
+  --primitive-typography-subtitle-size: 18px;
+  --primitive-typography-subtitle-line-height: 22px;
+
+  --primitive-typography-heading-5-size: 24px;
+  --primitive-typography-heading-5-line-height: 28px;
+  --primitive-typography-heading-5-weight: 400;
+
+  --primitive-typography-heading-4-size: 32px;
+  --primitive-typography-heading-4-line-height: 38px;
+
+  --primitive-typography-heading-3-size: 40px;
+  --primitive-typography-heading-3-line-height: 48px;
+
+  --primitive-typography-heading-2-size: 48px;
+  --primitive-typography-heading-2-line-height: 58px;
+
+  --primitive-typography-heading-1-size: 64px;
+  --primitive-typography-heading-1-line-height: 76px;
+
+  /* Sizes with no matching Figma type-scale token — kept for existing utilities (subhead, heading-m, heading-xl) */
+  --primitive-typography-size-20: 20px;
+  --primitive-typography-size-28: 28px;
+  --primitive-typography-size-36: 36px;
+
+  --primitive-typography-line-height-20: 28px;
+  --primitive-typography-line-height-28: 33.6px;
+  --primitive-typography-line-height-36: 43.2px;
+
+  /* primary */
+  --primitive-color-primary-100: oklch(0.8650 0.0656 27.82); /* #FBC3BB */
+  --primitive-color-primary-300: oklch(0.7354 0.1471 29.10); /* #F88272 */
+  --primitive-color-primary-500: oklch(0.6407 0.2177 31.07); /* #F4422A */
+  --primitive-color-primary-700: oklch(0.5337 0.2018 30.99); /* #C7210A */
+  --primitive-color-primary-900: oklch(0.3847 0.1412 31.10); /* #7E1507 */
+
+  /* neutral (greyscale) */
+  --primitive-color-neutral-50: oklch(0.9851 0 89.88); /* #FAFAFA */
+  --primitive-color-neutral-100: oklch(0.9571 0.0017 145.56); /* #F0F1F0 */
+  --primitive-color-neutral-200: oklch(0.8911 0.0014 130); /* #DBDBDA */
+  --primitive-color-neutral-300: oklch(0.8161 0.0018 130); /* #C2C3C2 */
+  --primitive-color-neutral-400: oklch(0.6618 0.0031 130); /* #929391 */
+  --primitive-color-neutral-500: oklch(0.4946 0.0034 128.54); /* #616260 */
+  --primitive-color-neutral-600: oklch(0.426 0.0035 130); /* #4E4F4D */
+  --primitive-color-neutral-700: oklch(0.3144 0.0045 145.47); /* #303230 */
+  --primitive-color-neutral-800: oklch(0.2859 0.0061 130); /* #292B28 */
+  --primitive-color-neutral-900: oklch(0.2449 0.0048 145.43); /* #1F211F */
+  --primitive-color-neutral-500-20: oklch(
+    0.4946 0.0034 128.54 / 0.2
+  ); /* #61626033 */
+
+  /* red (error) */
+  --primitive-color-red-100: oklch(0.9725 0.0119 23.7); /* #FEF3F2 */
+  --primitive-color-red-300: oklch(0.8014 0.1094 24.57); /* #FDA29B */
+  --primitive-color-red-500: oklch(0.5758 0.2088 29.48); /* #D92D20 */
+  --primitive-color-red-700: oklch(0.5003 0.1821 29.51); /* #B42318 */
+  --primitive-color-red-900: oklch(0.3975 0.1183 31.52); /* #7A271A */
+
+  /* green (success) */
+  --primitive-color-green-100: oklch(0.9788 0.0221 160.24); /* #ECFDF3 */
+  --primitive-color-green-300: oklch(0.9039 0.1006 157.23); /* #A6F4C5 */
+  --primitive-color-green-500: oklch(0.6859 0.1667 154.86); /* #12B76A */
+  --primitive-color-green-700: oklch(0.51 0.1218 156.56); /* #027A48 */
+  --primitive-color-green-900: oklch(0.3781 0.0843 159.06); /* #054F31 */
+
+  /* orange (warning) */
+  --primitive-color-orange-100: oklch(0.9849 0.0204 91.58); /* #FFFAEB */
+  --primitive-color-orange-300: oklch(0.9112 0.1109 90.28); /* #FEDF89 */
+  --primitive-color-orange-500: oklch(0.7469 0.1701 62.11); /* #F79009 */
+  --primitive-color-orange-700: oklch(0.5394 0.1562 42.99); /* #B54708 */
+  --primitive-color-orange-900: oklch(0.4061 0.1142 40.57); /* #7A2E0E */
+
+  /* blue (info) */
+  --primitive-color-blue-100: oklch(0.9744 0.0134 240.95); /* #EFF8FF */
+  --primitive-color-blue-300: oklch(0.8784 0.0652 242.31); /* #B2DDFF */
+  --primitive-color-blue-500: oklch(0.6518 0.1809 253.92); /* #2E90FA */
+  --primitive-color-blue-700: oklch(0.5093 0.1955 260.89); /* #175CD3 */
+  --primitive-color-blue-900: oklch(0.3885 0.1229 260.35); /* #194185 */
+
+  /* secondary */
+  --primitive-color-secondary-blue: oklch(0.3031 0.0526 238.6); /* #113246 */
+  --primitive-color-secondary-golden: oklch(0.7969 0.1601 75.71); /* #F7AC22 */
+  --primitive-color-secondary-cream: oklch(0.97 0.0082 91.48); /* #F7F5EF */
+
+  /* highlight */
+  --primitive-color-highlight-orange: oklch(0.6878 0.1945 34.81); /* #FB623D */
+  --primitive-color-highlight-blue: oklch(0.598 0.2136 257.36); /* #0479FB */
+  --primitive-color-highlight-pink: oklch(0.6806 0.223 354.31); /* #F94AA1 */
+  --primitive-color-highlight-yellow: oklch(0.8992 0.1558 96.37); /* #FCDD53 */
+  --primitive-color-highlight-green: oklch(0.6072 0.1444 147.91); /* #37994D */
+}
