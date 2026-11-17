@@ -108,6 +108,7 @@ export const STUDENT: CharacterSpec = {
   },
   shoe: { center: { L: [0.185, 0.05, 0.01], R: [-0.185, 0.05, 0.01] }, size: [0.125, 0.1, 0.29], toeOut: 0.12 },
   head: { center: [0, 1.585, -0.025], radii: [0.108, 0.15, 0.118] },
+  neck: { from: [0, 1.33, -0.02], to: [0, 1.47, -0.02], radius: 0.044 },
   trace: {
     skinSamples: [
       [-0.06, 1.52],
@@ -122,6 +123,16 @@ export const STUDENT: CharacterSpec = {
     clearDrawnEars: true,
     faceSlim: 0.85,
     hairMaxLuma: 90,
+    bands: {
+      headBottom: 1.4,
+      chin: [1.4, 1.5],
+      ear: [1.525, 1.625],
+      faceWidth: [1.49, 1.575],
+      nose: [1.515, 1.6],
+      jawCenterLimit: 1.52,
+      slimTop: 1.6,
+    },
+    neck: { radius: 0.048, z: -0.02, bottom: 1.33 },
     hairMaxWarmth: 50,
   },
   reshapeTemples: false,

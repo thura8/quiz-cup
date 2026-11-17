@@ -33,6 +33,8 @@ export type MascotPalette = {
   shirtPattern?: string;
   cuff?: string;
   sole?: string;
+  trim?: string;
+  metal?: string;
   belt?: string;
   buckle?: string;
   mic?: string;
@@ -40,6 +42,21 @@ export type MascotPalette = {
 };
 
 export type HandStyle = "open" | "mic";
+
+export type GlassesSpec = {
+  lensX: number;
+  lensY: number;
+  radius: number;
+  rim: number;
+  standoff: number;
+  bridgeY: number;
+  templeY: number;
+  sideTempleY: number;
+  sideLensZ: [number, number];
+  sideLensY: [number, number];
+  color: string;
+  lens?: string;
+};
 
 export type HeadTraceTuning = {
   skinSamples: [number, number][];
@@ -49,6 +66,19 @@ export type HeadTraceTuning = {
   frontHairWins: boolean;
   clearDrawnEars: boolean;
   faceSlim: number;
+  hairMinLuma?: number;
+  hairMaxChroma?: number;
+  bands: {
+    headBottom: number;
+    chin: [number, number];
+    ear: [number, number];
+    faceWidth: [number, number];
+    nose: [number, number];
+    jawCenterLimit: number;
+    slimTop: number;
+    flattenFront?: [number, number];
+  };
+  neck: { radius: number; z: number; bottom: number };
 };
 
 export type OutfitDetails = {
@@ -57,9 +87,13 @@ export type OutfitDetails = {
   belt?: { y: [number, number]; half: number; buckleHalf: number };
   hemBand?: number;
   buttons: number[];
+  shirtButtons?: number[];
+  drawstrings?: { x: number; top: number; bottom: number; spread: number };
+  zipper?: boolean;
+  ribbed?: boolean;
   flaps?: { y: [number, number]; x: [number, number] };
-  pocketLines: { y: number; x: [number, number] }[];
-  backSeamTop: number;
+  pocketLines: { y: number; x: [number, number]; rise?: number }[];
+  backSeamTop?: number;
 };
 
 export type CharacterSpec = {
@@ -73,12 +107,17 @@ export type CharacterSpec = {
   wrist: Sides<Vec3>;
   jacket: { profile: Profile; depthRatio: number; centerZ: number; spineToChest: [number, number] };
   outfit: OutfitDetails;
-  collar: { profile: Profile; frontGap: number; centerZ: number; material: "shirt" | "jacket" };
+  collar?: { profile: Profile; frontGap: number; centerZ: number; material: "shirt" | "jacket" };
+  hood?: {
+    rim: { center: Vec3; radiusX: number; radiusZ: number; drop: number; sweep: number; tube: number };
+    shell: { top: number; height: number; halfWidth: number; thickness: number; restOn: number };
+  };
   sleeve: {
     upper: Profile;
     forearm: Profile;
     shoulderRadius: number;
     elbowRadius: number;
+    folds?: boolean;
     cuff: { from: number; to: number; profile: Profile; material: "shirt" | "cuff" };
   };
   hands: Sides<HandStyle>;
@@ -86,7 +125,10 @@ export type CharacterSpec = {
   leg: { top: Sides<Vec3>; ankle: Sides<Vec3>; profile: Profile };
   shoe: { center: Sides<Vec3>; size: Vec3; toeOut: number };
   head: { center: Vec3; radii: Vec3 };
+  neck: { from: Vec3; to: Vec3; radius: number };
   trace: HeadTraceTuning;
   reshapeTemples: boolean;
+  noseStyle?: { minDepth: number; frontOnly: boolean };
+  glasses?: GlassesSpec;
   poses: PoseSet;
 };

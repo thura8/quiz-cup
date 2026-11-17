@@ -8,6 +8,7 @@ import { CHARACTER_IDS, CHARACTERS, type CharacterId, HOST } from "@/components/
 import { cn } from "@/lib/utils";
 
 import { type ConceptArt, VIEW_NAMES, loadConceptArt } from "./concept-art";
+import { eraseGlasses } from "./erase-glasses";
 import { createPainter, traceHead } from "./head-trace";
 import { downloadGlb, exportMascotGlb, parseGlb, saveToArena } from "./export-glb";
 import MascotStage, {
@@ -127,11 +128,12 @@ export default function MascotLab() {
 
   const traced = useMemo(() => {
     if (!art) return { head: null, paint: null, error: "" };
+    const paintArt = spec.glasses ? eraseGlasses(art, spec.glasses) : art;
     try {
       const head = traceHead(art, spec.trace);
-      return { head, paint: createPainter(art, head, spec.trace), error: "" };
+      return { head, paint: createPainter(paintArt, head, spec.trace), error: "" };
     } catch (error) {
-      return { head: null, paint: createPainter(art, null, spec.trace), error: (error as Error).message };
+      return { head: null, paint: createPainter(paintArt, null, spec.trace), error: (error as Error).message };
     }
   }, [art, spec]);
   const isClient = useSyncExternalStore(
@@ -203,6 +205,8 @@ export default function MascotLab() {
             freeCamera={freeCamera}
             pose={pose}
             poses={spec.poses}
+            headY={spec.head.center[1]}
+            headScale={Math.max(1, spec.head.radii[1] / HOST.head.radii[1])}
             overlay={overlay}
             opacity={opacity}
             toon={toon}

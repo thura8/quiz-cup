@@ -22,6 +22,7 @@ const FACE_TO_HAIR_BLEND = 0.04;
 const SEGMENTS_AROUND = 96;
 const NORMAL_STEP = 1e-3;
 const FALLBACK_ROWS = 48;
+const FRONT_SEARCH_STEPS = 24;
 
 const superellipse = (s: number, exponent: number) => Math.sign(s) * Math.abs(s) ** (2 / exponent);
 
@@ -65,6 +66,33 @@ export class HeadLoft {
       y,
       middle + (cos >= 0 ? front - middle : middle - back) * superellipse(cos, exponent),
     );
+  }
+
+  frontAt(x: number, y: number, target = new THREE.Vector3()) {
+    const last = this.rings.length - 1;
+    let j = 1;
+    while (j < last && this.rings[j].y < y) j++;
+    const below = this.rings[j - 1];
+    const above = this.rings[j];
+    const v = (j - 1 + THREE.MathUtils.clamp((y - below.y) / (above.y - below.y || 1), 0, 1)) / last;
+    const side = Math.sign(x - this.profile.centerX) || 1;
+    let low = 0.5;
+    let high = side > 0 ? 0.75 : 0.25;
+    for (let step = 0; step < FRONT_SEARCH_STEPS; step++) {
+      const middle = (low + high) / 2;
+      const reached = (this.point(middle, v, target).x - this.profile.centerX) * side;
+      if (reached < Math.abs(x - this.profile.centerX)) low = middle;
+      else high = middle;
+    }
+    return this.point((low + high) / 2, v, target);
+  }
+
+  halfWidthAt(y: number) {
+    let j = 1;
+    while (j < this.rings.length - 1 && this.rings[j].y < y) j++;
+    const below = this.rings[j - 1];
+    const above = this.rings[j];
+    return THREE.MathUtils.lerp(below.halfWidth, above.halfWidth, THREE.MathUtils.clamp((y - below.y) / (above.y - below.y || 1), 0, 1));
   }
 
   private frontExponent(y: number) {

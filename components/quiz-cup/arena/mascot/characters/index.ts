@@ -1,10 +1,11 @@
 import type { CharacterSpec } from "../mascot-spec";
+import { GRANDMA } from "./grandma";
 import { HOST } from "./host";
 import { STUDENT } from "./student";
 
-export { HOST, STUDENT };
+export { GRANDMA, HOST, STUDENT };
 
-export const CHARACTERS = { host: HOST, student: STUDENT } as const satisfies Record<string, CharacterSpec>;
+export const CHARACTERS = { host: HOST, student: STUDENT, grandma: GRANDMA } as const satisfies Record<string, CharacterSpec>;
 
 export type CharacterId = keyof typeof CHARACTERS;
 

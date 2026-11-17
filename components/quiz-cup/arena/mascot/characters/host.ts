@@ -127,6 +127,7 @@ export const HOST: CharacterSpec = {
   },
   shoe: { center: { L: [0.172, 0.045, 0.03], R: [-0.172, 0.045, 0.03] }, size: [0.11, 0.09, 0.28], toeOut: 0.12 },
   head: { center: [0, 1.585, -0.025], radii: [0.108, 0.15, 0.118] },
+  neck: { from: [0, 1.33, -0.02], to: [0, 1.47, -0.02], radius: 0.044 },
   trace: {
     skinSamples: [
       [-0.06, 1.52],
@@ -141,6 +142,16 @@ export const HOST: CharacterSpec = {
     clearDrawnEars: false,
     faceSlim: 0.9,
     hairMaxLuma: 95,
+    bands: {
+      headBottom: 1.4,
+      chin: [1.4, 1.5],
+      ear: [1.525, 1.625],
+      faceWidth: [1.49, 1.575],
+      nose: [1.515, 1.6],
+      jawCenterLimit: 1.52,
+      slimTop: 1.6,
+    },
+    neck: { radius: 0.048, z: -0.02, bottom: 1.33 },
     hairMaxWarmth: 18,
   },
   reshapeTemples: true,

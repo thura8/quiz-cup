@@ -6,11 +6,8 @@ import { MASCOT_HEIGHT } from "@/components/quiz-cup/arena/mascot/mascot-spec";
 
 import { type ArtView, type ConceptArt, type ViewName, toPixel } from "./concept-art";
 
-const HEAD_BOTTOM = 1.4;
 const CLOTH_BLUE_MARGIN = 12;
 const ROW_STEP = 0.004;
-const EAR_BAND: [number, number] = [1.525, 1.625];
-const FACE_WIDTH_BAND: [number, number] = [1.49, 1.575];
 const FACE_CONTOUR = 0.006;
 const FACE_WIDTH_BLEND = 0.045;
 const FACE_EDGE_SEARCH = 0.035;
@@ -22,12 +19,9 @@ const EAR_START_MAX = 0.012;
 const SILHOUETTE_SCAN = 0.16;
 const SKIN_MIN_RED = 120;
 const SKIN_RED_OVER_BLUE = 30;
-const NOSE_BAND: [number, number] = [1.515, 1.6];
 const NOSE_MIN_DEPTH = 0.004;
-const JAW_CENTER_LIMIT = 1.52;
 const SMOOTH_PASSES = 4;
-const CHIN_SEARCH: [number, number] = [1.4, 1.5];
-const NECK = { radius: 0.048, z: -0.02, bottom: 1.33, step: 0.01 };
+const NECK_STEP = 0.01;
 const JAW_BLEND = 0.012;
 const UNDER_JAW_TAPER = 0.03;
 const FRONT_HAIR_MIN_NZ = -0.2;
@@ -37,7 +31,6 @@ const NAPE_SEARCH = 0.08;
 const JAW_SKIN_BAND = 0.06;
 const JAW_WINDOW = 0.12;
 const EAR_ZONE = { halfHeight: 0.05, halfDepth: 0.035, minSideways: 0.3 };
-const FACE_SLIM_TOP = 1.6;
 const FACE_SLIM_IN = 0.03;
 const FACE_SLIM_FULL = 0.045;
 const BLEND_SHARPNESS = 6;
@@ -57,8 +50,8 @@ type TracedRow = HeadRow & { centerX: number };
 const SIDE_WINDOW: Record<ViewName, Extent> = {
   front: [-0.2, 0.2],
   back: [-0.2, 0.2],
-  right: [-0.25, 0.2],
-  left: [-0.2, 0.25],
+  right: [-0.32, 0.2],
+  left: [-0.2, 0.32],
 };
 
 function isCloth(rgba: Uint8ClampedArray, i: number) {
@@ -156,8 +149,7 @@ function denoise(values: number[]) {
   });
 }
 
-function fitFaceWidth(art: ConceptArt, rows: TracedRow[]) {
-  const [from, to] = FACE_WIDTH_BAND;
+function fitFaceWidth(art: ConceptArt, rows: TracedRow[], [from, to]: [number, number]) {
   const band = rows.filter((row) => row.y >= from && row.y <= to);
   if (!band.length) return;
   const faces = denoise(band.map((row) => Math.min(row.halfWidth, drawnFaceHalf(art, row.y) + FACE_CONTOUR)));
@@ -181,8 +173,8 @@ function fitFaceWidth(art: ConceptArt, rows: TracedRow[]) {
   }
 }
 
-function neckRow(y: number): TracedRow {
-  return { y, halfWidth: NECK.radius, front: NECK.z + NECK.radius, back: NECK.z - NECK.radius, centerX: 0 };
+function neckRow({ radius, z }: HeadTraceTuning["neck"], y: number): TracedRow {
+  return { y, halfWidth: radius, front: z + radius, back: z - radius, centerX: 0 };
 }
 
 function taperUnderJaw(rows: TracedRow[], chinY: number) {
@@ -195,10 +187,10 @@ function taperUnderJaw(rows: TracedRow[], chinY: number) {
   }
 }
 
-function joinNeck(rows: TracedRow[], chinY: number, napeY: number) {
+function joinNeck(rows: TracedRow[], chinY: number, napeY: number, neckSize: HeadTraceTuning["neck"]) {
   taperUnderJaw(rows, chinY);
   for (const row of rows) {
-    const neck = neckRow(row.y);
+    const neck = neckRow(neckSize, row.y);
     if (row.y < chinY) {
       const t = THREE.MathUtils.smoothstep(row.y, chinY - JAW_BLEND, chinY);
       row.halfWidth = THREE.MathUtils.lerp(neck.halfWidth, row.halfWidth, t);
@@ -240,10 +232,10 @@ function fitJawWidth(art: ConceptArt, rows: TracedRow[], chinY: number) {
   }
 }
 
-function slimFace(rows: TracedRow[], chinY: number, faceSlim: number) {
+function slimFace(rows: TracedRow[], chinY: number, faceSlim: number, slimTop: number) {
   for (const row of rows) {
     const fromChin = THREE.MathUtils.smoothstep(row.y, chinY, chinY + FACE_SLIM_IN);
-    const towardTemples = 1 - THREE.MathUtils.smoothstep(row.y, chinY + FACE_SLIM_FULL, FACE_SLIM_TOP);
+    const towardTemples = 1 - THREE.MathUtils.smoothstep(row.y, chinY + FACE_SLIM_FULL, slimTop);
     row.halfWidth *= THREE.MathUtils.lerp(1, faceSlim, fromChin * towardTemples);
   }
 }
@@ -256,11 +248,11 @@ function halfWidthAt(rows: HeadRow[], y: number) {
   return THREE.MathUtils.lerp(below.halfWidth, rows[above].halfWidth, t);
 }
 
-function findChin(rows: TracedRow[]) {
-  let chinY = CHIN_SEARCH[0];
+function findChin(rows: TracedRow[], search: [number, number]) {
+  let chinY = search[0];
   let biggestStep = 0;
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i].y < CHIN_SEARCH[0] || rows[i].y > CHIN_SEARCH[1]) continue;
+    if (rows[i].y < search[0] || rows[i].y > search[1]) continue;
     const step = rows[i].front - rows[i - 1].front;
     if (step > biggestStep) {
       biggestStep = step;
@@ -272,7 +264,8 @@ function findChin(rows: TracedRow[]) {
 
 export function traceHead(art: ConceptArt, tuning: HeadTraceTuning): HeadProfile {
   const rows: TracedRow[] = [];
-  for (let y = HEAD_BOTTOM; y < MASCOT_HEIGHT + 0.1; y += ROW_STEP) {
+  const { bands, neck } = tuning;
+  for (let y = bands.headBottom; y < MASCOT_HEIGHT + 0.1; y += ROW_STEP) {
     const width = rowExtent(art, art.views.front, y, SIDE_WINDOW.front);
     const depth = depthExtent(art, y);
     if (!width || !depth) break;
@@ -286,24 +279,25 @@ export function traceHead(art: ConceptArt, tuning: HeadTraceTuning): HeadProfile
   }
   if (rows.length < 10) throw new Error("Could not trace the head from the concept art");
 
-  const earRows = rows.filter((row) => row.y >= EAR_BAND[0] && row.y <= EAR_BAND[1]);
+  const earRows = rows.filter((row) => row.y >= bands.ear[0] && row.y <= bands.ear[1]);
   const earRow = earRows.reduce((widest, row) => (row.halfWidth > widest.halfWidth ? row : widest), earRows[0]);
   const earY = earRow.y - 0.007;
   const earZ = (earRow.front + earRow.back) / 2 - 0.03;
-  fitFaceWidth(art, rows);
+  fitFaceWidth(art, rows, bands.faceWidth);
 
-  const chinY = findChin(rows);
+  const chinY = findChin(rows, bands.chin);
   const napeY = findNape(rows, chinY);
   fitJawWidth(art, rows, chinY);
-  slimFace(rows, chinY, tuning.faceSlim);
+  slimFace(rows, chinY, tuning.faceSlim, bands.slimTop);
   for (let pass = 0; pass < SMOOTH_PASSES; pass++)
     (["halfWidth", "front", "back"] as const).forEach((key) => smooth(rows, key));
 
-  joinNeck(rows, chinY, napeY);
-  for (let y = rows[0].y - NECK.step; y >= NECK.bottom; y -= NECK.step) rows.unshift(neckRow(y));
+  joinNeck(rows, chinY, napeY, neck);
+  for (let y = rows[0].y - NECK_STEP; y >= neck.bottom; y -= NECK_STEP) rows.unshift(neckRow(neck, y));
 
+  if (bands.flattenFront) interpolateAcross(rows, "front", bands.flattenFront, (row, baseline) => Math.min(row.front, baseline));
   const originalFront = new Map(rows.map((row) => [row, row.front]));
-  interpolateAcross(rows, "front", NOSE_BAND, (row, baseline) => Math.min(row.front, baseline));
+  interpolateAcross(rows, "front", bands.nose, (row, baseline) => Math.min(row.front, baseline));
   let nose: HeadProfile["nose"] = null;
   for (const row of rows) {
     const depth = originalFront.get(row)! - row.front;
@@ -312,7 +306,7 @@ export function traceHead(art: ConceptArt, tuning: HeadTraceTuning): HeadProfile
     }
   }
 
-  const jaw = rows.filter((row) => row.y >= chinY && row.y < JAW_CENTER_LIMIT);
+  const jaw = rows.filter((row) => row.y >= chinY && row.y < bands.jawCenterLimit);
   const centerX = jaw.reduce((sum, row) => sum + row.centerX, 0) / jaw.length;
   return {
     rows: rows.map(({ y, halfWidth, front, back, backHalfWidth }) => ({ y, halfWidth, front, back, backHalfWidth })),
@@ -391,8 +385,12 @@ function sideColor(art: ConceptArt, point: { x: number; y: number; z: number }, 
 
 type HairTest = (color: Rgb) => boolean;
 
-function hairTest({ hairMaxLuma, hairMaxWarmth }: HeadTraceTuning): HairTest {
-  return ([r, g, b]) => 0.3 * r + 0.59 * g + 0.11 * b < hairMaxLuma && r - b < hairMaxWarmth;
+function hairTest({ hairMinLuma = 0, hairMaxLuma, hairMaxWarmth, hairMaxChroma = 255 }: HeadTraceTuning): HairTest {
+  return ([r, g, b]) => {
+    const luma = 0.3 * r + 0.59 * g + 0.11 * b;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    return luma >= hairMinLuma && luma < hairMaxLuma && r - b < hairMaxWarmth && chroma <= hairMaxChroma;
+  };
 }
 
 type FaceEdge = { y: number; halfWidth: number; left: number; right: number };

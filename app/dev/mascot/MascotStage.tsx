@@ -34,13 +34,21 @@ function ViewCamera({
   view,
   framing,
   freeCamera,
+  headY,
+  headScale,
 }: {
   view: CameraView;
   framing: Framing;
   freeCamera: [number, number, number] | null;
+  headY: number;
+  headScale: number;
 }) {
-  const { look, visibleHeight } = FRAMES[framing];
-  const freePosition = freeCamera ?? FRAMES[framing].freePosition;
+  const frame = FRAMES[framing];
+  const lift = framing === "head" ? headY - frame.look : 0;
+  const look = frame.look + lift;
+  const visibleHeight = framing === "head" ? frame.visibleHeight * headScale : frame.visibleHeight;
+  const [fx, fy, fz] = frame.freePosition;
+  const freePosition = freeCamera ?? ([fx, fy + lift, fz] as [number, number, number]);
   const height = useThree((state) => state.size.height);
   if (view === "free") {
     return (
@@ -182,6 +190,8 @@ export default function MascotStage({
   freeCamera = null,
   pose,
   poses,
+  headY,
+  headScale,
   overlay,
   opacity,
   toon,
@@ -195,6 +205,8 @@ export default function MascotStage({
   freeCamera?: [number, number, number] | null;
   pose: MascotPose;
   poses: PoseSet;
+  headY: number;
+  headScale: number;
   overlay: OverlayMode;
   opacity: number;
   toon: boolean;
@@ -210,7 +222,14 @@ export default function MascotStage({
       }}
     >
       <color attach="background" args={[BACKGROUND]} />
-      <ViewCamera key={view + framing + freeCamera} view={view} framing={framing} freeCamera={freeCamera} />
+      <ViewCamera
+        key={view + framing + freeCamera + headY + headScale}
+        view={view}
+        framing={framing}
+        freeCamera={freeCamera}
+        headY={headY}
+        headScale={headScale}
+      />
       <hemisphereLight args={["#dfe2ff", "#3a2c4a", 1.2]} />
       <directionalLight position={[2, 4, 5]} intensity={2.4} castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[-3, 2.5, -4]} intensity={1.1} color="#a492ff" />
