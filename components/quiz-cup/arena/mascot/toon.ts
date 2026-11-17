@@ -4,7 +4,7 @@ import { OUTLINE_PREFIX } from "./build-mascot";
 
 const TONES = [110, 185, 255];
 const PAINTED_TONES = [175, 220, 255];
-const PAINTED_MATERIALS = new Set(["M_Host_Head", "M_Host_Painted"]);
+const PAINTED_SUFFIXES = ["_Head", "_Painted"];
 const PBR_KEY = "pbrMaterial";
 
 const gradients = new Map<number[], THREE.DataTexture>();
@@ -26,7 +26,7 @@ function toToon(material: THREE.MeshStandardMaterial) {
     color: material.color,
     map: material.map,
     vertexColors: material.vertexColors,
-    gradientMap: toonGradient(PAINTED_MATERIALS.has(material.name) ? PAINTED_TONES : TONES),
+    gradientMap: toonGradient(PAINTED_SUFFIXES.some((suffix) => material.name.endsWith(suffix)) ? PAINTED_TONES : TONES),
     transparent: material.transparent,
     opacity: material.opacity,
     depthWrite: material.depthWrite,

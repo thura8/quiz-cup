@@ -9,7 +9,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { ARENA_MODELS } from "@/constants/quiz-cup-arena";
 
 import { placeHost } from "./arena-utils";
-import { HOST_POSES } from "./mascot/mascot-spec";
+import { HOST } from "./mascot/characters";
 import { setToon } from "./mascot/toon";
 import { PlayerRig } from "./player-rig";
 
@@ -23,7 +23,7 @@ function buildHost(scene: THREE.Object3D) {
   });
   setToon(root, true);
   placeHost(root, HOST_SCALE);
-  return { root, rig: new PlayerRig(root, HOST_RIG_SEED, HOST_POSES) };
+  return { root, rig: new PlayerRig(root, HOST_RIG_SEED, HOST.poses) };
 }
 
 function ArenaHost() {

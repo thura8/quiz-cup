@@ -27,7 +27,7 @@ export function keyWhiteBackground(image: HTMLImageElement) {
   return { canvas, frames: measureFrames(rgba, width, height) };
 }
 
-export function keyOutWhite(image: HTMLImageElement) {
+export function keyOutWhite(image: HTMLImageElement, { enclosedWhiteIsBackground = true } = {}) {
   const width = image.naturalWidth;
   const height = image.naturalHeight;
   const canvas = document.createElement("canvas");
@@ -39,7 +39,7 @@ export function keyOutWhite(image: HTMLImageElement) {
   const rgba = imageData.data;
 
   const white = findWhitePixels(rgba, width * height);
-  const background = findBackground(white, width, height);
+  const background = findBackground(white, width, height, enclosedWhiteIsBackground);
   const edge = findEdgeBand(background, width, height);
   applyAlpha(rgba, background, edge);
 
@@ -57,7 +57,7 @@ function findWhitePixels(rgba: Uint8ClampedArray, pixelCount: number) {
   return white;
 }
 
-function findBackground(white: Uint8Array, width: number, height: number) {
+function findBackground(white: Uint8Array, width: number, height: number, enclosedWhiteIsBackground: boolean) {
   const pixelCount = width * height;
   const background = new Uint8Array(pixelCount);
   const visited = new Uint8Array(pixelCount);
@@ -89,7 +89,7 @@ function findBackground(white: Uint8Array, width: number, height: number) {
     }
 
     const regionSize = tail;
-    if (touchesBorder || regionSize > ENCLOSED_GAP_MIN_PIXELS) {
+    if (touchesBorder || (enclosedWhiteIsBackground && regionSize > ENCLOSED_GAP_MIN_PIXELS)) {
       for (let k = 0; k < regionSize; k++) background[queue[k]] = 1;
     }
   }

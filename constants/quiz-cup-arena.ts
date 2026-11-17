@@ -7,6 +7,7 @@ const DIR = "/quiz-cup/arena";
 export const ARENA_MODELS = {
   player: `${DIR}/player01.glb`,
   host: `${DIR}/host.glb`,
+  student: `${DIR}/student.glb`,
 } as const;
 
 export const STUDIO_CENTER = { x: 0, z: -5.5 } as const;

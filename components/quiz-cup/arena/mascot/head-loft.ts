@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { HEAD, MASCOT_PALETTE } from "./mascot-spec";
+import type { CharacterSpec, MascotPalette } from "./mascot-spec";
 
 export type HeadRow = { y: number; halfWidth: number; front: number; back: number; backHalfWidth?: number };
 
@@ -123,9 +123,9 @@ export class HeadLoft {
   }
 }
 
-export function defaultHeadProfile(): HeadProfile {
-  const [cx, cy, cz] = HEAD.center;
-  const [rx, ry, rz] = HEAD.radii;
+export function defaultHeadProfile(head: CharacterSpec["head"]): HeadProfile {
+  const [cx, cy, cz] = head.center;
+  const [rx, ry, rz] = head.radii;
   const rows = Array.from({ length: FALLBACK_ROWS }, (_, i) => {
     const s = -0.98 + (1.96 * i) / (FALLBACK_ROWS - 1);
     const k = Math.sqrt(1 - s * s);
@@ -140,14 +140,15 @@ export function defaultHeadProfile(): HeadProfile {
   };
 }
 
-const hairRgb = new THREE.Color(MASCOT_PALETTE.hair);
-const skinRgb = new THREE.Color(MASCOT_PALETTE.skin);
-const toRgb = (color: THREE.Color): Rgb => [color.r * 255, color.g * 255, color.b * 255];
+const toRgb = (hex: string): Rgb => {
+  const color = new THREE.Color(hex);
+  return [color.r * 255, color.g * 255, color.b * 255];
+};
 
-export function fallbackPaint(profile: HeadProfile): Painter {
+export function fallbackPaint(profile: HeadProfile, palette: MascotPalette): Painter {
   const top = profile.rows[profile.rows.length - 1].y;
-  const hair = toRgb(hairRgb);
-  const skin = toRgb(skinRgb);
+  const hair = toRgb(palette.hair);
+  const skin = toRgb(palette.skin);
   return (point) => {
     const hairline = top - 0.07 + Math.max(0, -point.z) * 1.2;
     return point.y > hairline ? hair : skin;

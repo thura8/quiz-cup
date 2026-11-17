@@ -87,8 +87,11 @@ function measureView(art: Pick<ConceptArt, "rgba" | "width" | "height">, left: n
   };
 }
 
-export async function loadConceptArt(url: string): Promise<ConceptArt> {
-  const { canvas, rgba, width, height } = keyOutWhite(await loadImage(url));
+export async function loadConceptArt(
+  url: string,
+  options: { enclosedWhiteIsBackground: boolean } = { enclosedWhiteIsBackground: true },
+): Promise<ConceptArt> {
+  const { canvas, rgba, width, height } = keyOutWhite(await loadImage(url), options);
   const base = { rgba, width, height };
   const runs = findColumnRuns(base);
   if (runs.length !== VIEW_NAMES.length) {

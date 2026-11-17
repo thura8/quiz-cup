@@ -1,15 +1,11 @@
 import * as THREE from "three";
 
-import { JACKET, MASCOT_PALETTE as P } from "./mascot-spec";
+import type { CharacterSpec, OutfitDetails } from "./mascot-spec";
 
 const JACKET_TEXTURE_SIZE = 1024;
-const OPENING_TOP = 1.39;
-const LAPEL_START = 1.08;
-const LAPEL_FULL = 1.3;
-const LAPEL_WIDTH = 0.06;
-const BELT_HALF = 0.062;
-const BUCKLE_HALF = 0.014;
 const BUTTON_RADIUS = 0.009;
+const HEM_OUTLINE = 0.007;
+const UNDER_STRIP_WIDENING = 0.35;
 
 function toTexture(canvas: HTMLCanvasElement) {
   const texture = new THREE.CanvasTexture(canvas);
@@ -18,12 +14,17 @@ function toTexture(canvas: HTMLCanvasElement) {
   return texture;
 }
 
-function shirtHalf(y: number, radius: number) {
-  const t = THREE.MathUtils.clamp((y - JACKET.beltY[1]) / (OPENING_TOP - JACKET.beltY[1]), 0, 1);
-  return Math.min(radius * 0.8, 0.048 + t * 0.027);
+function shirtHalf({ strip }: OutfitDetails, y: number, radius: number) {
+  const t = THREE.MathUtils.clamp((y - strip.bottom) / (strip.top - strip.bottom), 0, 1);
+  return Math.min(radius * 0.8, THREE.MathUtils.lerp(strip.halfBottom, strip.halfTop, t));
 }
 
-export function jacketTexture(profile: THREE.Vector2[]) {
+export function jacketTexture(spec: CharacterSpec, profile: THREE.Vector2[]) {
+  const P = spec.palette;
+  const outfit = spec.outfit;
+  const { strip, lapel, belt, flaps } = outfit;
+  const hemOutlineBelow = spec.jacket.profile[0][1] + HEM_OUTLINE;
+  const underStripFrom = belt ? belt.y[0] : strip.bottom;
   const size = JACKET_TEXTURE_SIZE;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
@@ -56,42 +57,45 @@ export function jacketTexture(profile: THREE.Vector2[]) {
       context.fillRect(px(half) - 1, row, 3, 1);
     };
 
-    const [beltBottom, beltTop] = JACKET.beltY;
-    if (y >= beltTop) {
-      const half = shirtHalf(y, radius);
+    if (outfit.hemBand && y < outfit.hemBand) span(-radius, radius, P.cuff ?? P.jacket);
+    if (y >= (belt ? belt.y[1] : strip.bottom)) {
+      const half = shirtHalf(outfit, y, radius);
       span(-half, half, P.shirt);
-      if (row % 7 === 0) {
+      if (strip.pattern && P.shirtPattern && row % 7 === 0) {
         context.fillStyle = P.shirtPattern;
         const shift = (row / 7) % 2 ? 0.006 : 0;
         for (let x = -half + 0.004 + shift; x < half - 0.004; x += 0.012) context.fillRect(px(x), row, 2, 2);
       }
-      if (y > LAPEL_START) {
-        const width = LAPEL_WIDTH * THREE.MathUtils.smoothstep(y, LAPEL_START, LAPEL_FULL);
+      if (y > lapel.start) {
+        const width = lapel.width * THREE.MathUtils.smoothstep(y, lapel.start, lapel.full);
         span(half, half + width, P.lapel);
         span(-half - width, -half, P.lapel);
         edges(half + width);
       }
       edges(half);
-    } else if (y >= beltBottom) {
-      span(-BELT_HALF, BELT_HALF, P.belt);
-      if (y > beltBottom + 0.004 && y < beltTop - 0.004) span(-BUCKLE_HALF, BUCKLE_HALF, P.buckle);
-      edges(BELT_HALF);
+    } else if (belt && y >= belt.y[0]) {
+      span(-belt.half, belt.half, P.belt ?? P.outline);
+      if (y > belt.y[0] + 0.004 && y < belt.y[1] - 0.004) span(-belt.buckleHalf, belt.buckleHalf, P.buckle ?? P.shirt);
+      edges(belt.half);
     } else {
-      const half = BELT_HALF + (beltBottom - y) * 0.35;
+      const half = (belt ? belt.half : strip.halfBottom) + (underStripFrom - y) * UNDER_STRIP_WIDENING;
       span(-half, half, P.trousers);
       edges(half);
     }
 
-    if (y > 0.83 && y < 0.848) {
-      span(0.095, 0.165, P.lapel);
-      span(-0.165, -0.095, P.lapel);
+    if (flaps && y > flaps.y[0] && y < flaps.y[1]) {
+      span(flaps.x[0], flaps.x[1], P.lapel);
+      span(-flaps.x[1], -flaps.x[0], P.lapel);
     }
-    if (Math.abs(y - 0.848) < 0.002 || Math.abs(y - 1.175) < 0.0015) {
-      span(0.095, 0.165, P.outline);
-      span(-0.165, -0.095, P.outline);
+    for (const line of outfit.pocketLines) {
+      if (Math.abs(y - line.y) < 0.0018) {
+        span(line.x[0], line.x[1], P.outline);
+        span(-line.x[1], -line.x[0], P.outline);
+      }
     }
-    if (y < 0.752) span(-radius, radius, P.outline);
-    if (y < 1.33) {
+    if (outfit.hemBand && Math.abs(y - outfit.hemBand) < 0.0015) span(-radius, radius, P.outline);
+    if (y < hemOutlineBelow) span(-radius, radius, P.outline);
+    if (y < outfit.backSeamTop) {
       context.fillStyle = P.outline;
       context.fillRect(0, row, 2, 1);
       context.fillRect(size - 2, row, 2, 1);
@@ -105,10 +109,10 @@ export function jacketTexture(profile: THREE.Vector2[]) {
   };
   const metersPerRow = Math.abs(rowY[rowOf(1.0)] - rowY[rowOf(1.0) + 1]);
   context.fillStyle = P.outline;
-  for (const y of [1.0, 0.935]) {
+  for (const y of outfit.buttons) {
     const row = rowOf(y);
     const radius = rowRadius[row];
-    const x = -shirtHalf(y, radius) - 0.02;
+    const x = -shirtHalf(outfit, y, radius) - 0.02;
     const u = (0.5 + Math.asin(x / radius) / (Math.PI * 2)) * size;
     context.beginPath();
     context.ellipse(
@@ -126,7 +130,7 @@ export function jacketTexture(profile: THREE.Vector2[]) {
   return toTexture(canvas);
 }
 
-export function trouserTexture() {
+export function trouserTexture({ palette: P }: CharacterSpec) {
   const size = 256;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;

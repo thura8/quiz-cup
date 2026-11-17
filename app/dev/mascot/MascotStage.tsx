@@ -5,9 +5,8 @@ import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber"
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 
-import { HOST_POSES } from "@/components/quiz-cup/arena/mascot/mascot-spec";
 import { setOutlines, setToon } from "@/components/quiz-cup/arena/mascot/toon";
-import { PlayerRig } from "@/components/quiz-cup/arena/player-rig";
+import { PlayerRig, type PoseSet } from "@/components/quiz-cup/arena/player-rig";
 import type { QuizCupArenaPlayerStatus } from "@/types/quiz-cup";
 
 import { type ConceptArt, VIEW_YAW, type ViewName, silhouetteSpan, toMeters } from "./concept-art";
@@ -136,15 +135,17 @@ function ArtPlane({
 function Model({
   model,
   pose,
+  poses,
   toon,
   outlines,
 }: {
   model: THREE.Object3D;
   pose: MascotPose;
+  poses: PoseSet;
   toon: boolean;
   outlines: boolean;
 }) {
-  const rig = useMemo(() => new PlayerRig(model, RIG_SEED, HOST_POSES), [model]);
+  const rig = useMemo(() => new PlayerRig(model, RIG_SEED, poses), [model, poses]);
   const rest = useMemo(() => {
     const quaternions = new Map<THREE.Object3D, THREE.Quaternion>();
     model.traverse((object) => {
@@ -180,6 +181,7 @@ export default function MascotStage({
   framing,
   freeCamera = null,
   pose,
+  poses,
   overlay,
   opacity,
   toon,
@@ -192,6 +194,7 @@ export default function MascotStage({
   framing: Framing;
   freeCamera?: [number, number, number] | null;
   pose: MascotPose;
+  poses: PoseSet;
   overlay: OverlayMode;
   opacity: number;
   toon: boolean;
@@ -215,7 +218,7 @@ export default function MascotStage({
         <circleGeometry args={[1.2, 64]} />
         <meshStandardMaterial color="#2a2d4a" roughness={0.9} />
       </mesh>
-      <Model model={model} pose={pose} toon={toon} outlines={outlines} />
+      <Model model={model} pose={pose} poses={poses} toon={toon} outlines={outlines} />
       {art && view !== "free" && overlay !== "off" && (
         <ArtPlane art={art} view={view} mode={overlay} opacity={opacity} onReadout={onReadout} />
       )}

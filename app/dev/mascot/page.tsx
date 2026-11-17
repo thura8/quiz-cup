@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import * as THREE from "three";
 
 import { buildMascot } from "@/components/quiz-cup/arena/mascot/build-mascot";
-import { HOST_POSES } from "@/components/quiz-cup/arena/mascot/mascot-spec";
+import { CHARACTER_IDS, CHARACTERS, type CharacterId, HOST } from "@/components/quiz-cup/arena/mascot/characters";
 import { cn } from "@/lib/utils";
 
 import { type ConceptArt, VIEW_NAMES, loadConceptArt } from "./concept-art";
 import { createPainter, traceHead } from "./head-trace";
-import { EXPORT_FILE_NAME, downloadGlb, exportMascotGlb, parseGlb, saveToArena } from "./export-glb";
+import { downloadGlb, exportMascotGlb, parseGlb, saveToArena } from "./export-glb";
 import MascotStage, {
   type CameraView,
   type Framing,
@@ -18,9 +18,8 @@ import MascotStage, {
   type Readout,
 } from "./MascotStage";
 
-const ART_URL = "/concept/host-turnaround.jpeg";
 const VIEWS: CameraView[] = ["free", ...VIEW_NAMES];
-const POSES: MascotPose[] = ["rest", ...(Object.keys(HOST_POSES) as MascotPose[])];
+const POSES: MascotPose[] = ["rest", ...(Object.keys(HOST.poses) as MascotPose[])];
 const OVERLAYS: OverlayMode[] = ["off", "under", "over"];
 const FRAMINGS: Framing[] = ["body", "head"];
 
@@ -78,7 +77,8 @@ function Choice<T extends string>({
 }
 
 export default function MascotLab() {
-  const [art, setArt] = useState<ConceptArt | null>(null);
+  const [characterId, setCharacterId] = useState<CharacterId>("host");
+  const [loaded, setLoaded] = useState<{ id: CharacterId; art: ConceptArt } | null>(null);
   const [message, setMessage] = useState("Loading concept art…");
   const [view, setView] = useState<CameraView>("free");
   const [pose, setPose] = useState<MascotPose>("idle");
@@ -95,6 +95,7 @@ export default function MascotLab() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     /* eslint-disable react-hooks/set-state-in-effect -- one-time sync from the URL so views can be linked/screenshotted */
+    setCharacterId((current) => pick(params, "character", CHARACTER_IDS) ?? current);
     setView((current) => pick(params, "view", VIEWS) ?? current);
     setPose((current) => pick(params, "pose", POSES) ?? current);
     setOverlay((current) => pick(params, "overlay", OVERLAYS) ?? current);
@@ -106,37 +107,41 @@ export default function MascotLab() {
     if (params.get("toon") === "0") setToonEnabled(false);
     if (params.get("outlines") === "0") setOutlinesEnabled(false);
     /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
+  const spec = CHARACTERS[characterId];
+  useEffect(() => {
     let cancelled = false;
-    loadConceptArt(ART_URL)
-      .then((loaded) => {
+    loadConceptArt(spec.art.turnaround, spec.art)
+      .then((art) => {
         if (cancelled) return;
-        setArt(loaded);
+        setLoaded({ id: spec.id as CharacterId, art });
         setMessage("");
       })
       .catch((error: Error) => !cancelled && setMessage(error.message));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [spec]);
+  const art = loaded?.id === characterId ? loaded.art : null;
 
   const traced = useMemo(() => {
     if (!art) return { head: null, paint: null, error: "" };
     try {
-      const head = traceHead(art);
-      return { head, paint: createPainter(art, head), error: "" };
+      const head = traceHead(art, spec.trace);
+      return { head, paint: createPainter(art, head, spec.trace), error: "" };
     } catch (error) {
-      return { head: null, paint: createPainter(art, null), error: (error as Error).message };
+      return { head: null, paint: createPainter(art, null, spec.trace), error: (error as Error).message };
     }
-  }, [art]);
+  }, [art, spec]);
   const isClient = useSyncExternalStore(
     subscribeNever,
     () => true,
     () => false,
   );
   const built = useMemo(
-    () => (isClient ? buildMascot({ head: traced.head, paint: traced.paint }) : null),
-    [isClient, traced],
+    () => (isClient && art ? buildMascot({ spec, head: traced.head, paint: traced.paint }) : null),
+    [isClient, art, spec, traced],
   );
   useEffect(() => () => built?.dispose(), [built]);
   useEffect(() => () => void (exported && disposeObject(exported)), [exported]);
@@ -147,14 +152,15 @@ export default function MascotLab() {
     async (download: boolean) => {
       try {
         setMessage("Exporting…");
-        const buffer = await exportMascotGlb({ head: traced.head, paint: traced.paint });
-        if (download) downloadGlb(buffer);
-        const saved = await saveToArena(buffer);
+        const buffer = await exportMascotGlb({ spec, head: traced.head, paint: traced.paint });
+        const fileName = `${spec.id}.glb`;
+        if (download) downloadGlb(buffer, fileName);
+        const saved = await saveToArena(buffer, spec.id);
         setExported(await parseGlb(buffer));
         setSource("exported");
         setMessage(
           `Saved ${saved.path} (${Math.round(saved.bytes / 1024)} KB)` +
-            (download ? ` and downloaded ${EXPORT_FILE_NAME}` : "") +
+            (download ? ` and downloaded ${fileName}` : "") +
             ", now showing the re-imported file",
         );
         document.title = "mascot-exported";
@@ -163,7 +169,7 @@ export default function MascotLab() {
         document.title = "mascot-export-failed";
       }
     },
-    [traced],
+    [spec, traced],
   );
 
   useEffect(() => {
@@ -172,6 +178,16 @@ export default function MascotLab() {
     const timer = setTimeout(() => void exportGlb(false));
     return () => clearTimeout(timer);
   }, [art, traced, exportGlb]);
+
+  const switchCharacter = (id: CharacterId) => {
+    setCharacterId(id);
+    setSource("built");
+    setExported(null);
+    setMessage("Loading concept art…");
+    const url = new URL(window.location.href);
+    url.searchParams.set("character", id);
+    window.history.replaceState(null, "", url);
+  };
 
   const lateralAxis = view === "right" || view === "left" ? "z" : "x";
 
@@ -186,6 +202,7 @@ export default function MascotLab() {
             framing={framing}
             freeCamera={freeCamera}
             pose={pose}
+            poses={spec.poses}
             overlay={overlay}
             opacity={opacity}
             toon={toon}
@@ -196,6 +213,7 @@ export default function MascotLab() {
       </div>
 
       <div className="absolute top-4 left-4 flex max-w-[calc(100%-2rem)] flex-col gap-2 rounded-2xl bg-black/50 p-3 backdrop-blur">
+        <Choice label="Character" options={CHARACTER_IDS} value={characterId} onChange={switchCharacter} />
         <Choice label="View" options={VIEWS} value={view} onChange={setView} />
         <Choice label="Frame" options={FRAMINGS} value={framing} onChange={setFraming} />
         <Choice label="Pose" options={POSES} value={pose} onChange={setPose} />

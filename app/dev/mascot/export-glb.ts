@@ -4,8 +4,6 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 import { type MascotOptions, buildMascot } from "@/components/quiz-cup/arena/mascot/build-mascot";
 
-export const EXPORT_FILE_NAME = "host.glb";
-
 export async function exportMascotGlb(options: MascotOptions) {
   const { root, dispose } = buildMascot(options);
   try {
@@ -17,7 +15,7 @@ export async function exportMascotGlb(options: MascotOptions) {
   }
 }
 
-export function downloadGlb(buffer: ArrayBuffer, fileName = EXPORT_FILE_NAME) {
+export function downloadGlb(buffer: ArrayBuffer, fileName: string) {
   const url = URL.createObjectURL(new Blob([buffer], { type: "model/gltf-binary" }));
   const link = document.createElement("a");
   link.href = url;
@@ -32,8 +30,11 @@ export function parseGlb(buffer: ArrayBuffer) {
   );
 }
 
-export async function saveToArena(buffer: ArrayBuffer) {
-  const response = await fetch("/dev/mascot/save", { method: "POST", body: buffer });
+export async function saveToArena(buffer: ArrayBuffer, character: string) {
+  const response = await fetch(`/dev/mascot/save?character=${encodeURIComponent(character)}`, {
+    method: "POST",
+    body: buffer,
+  });
   if (!response.ok) throw new Error(await response.text());
   return (await response.json()) as { path: string; bytes: number };
 }
