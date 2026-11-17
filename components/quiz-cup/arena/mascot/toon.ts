@@ -4,7 +4,7 @@ import { OUTLINE_PREFIX } from "./build-mascot";
 
 const TONES = [110, 185, 255];
 const PAINTED_TONES = [175, 220, 255];
-const PAINTED_SUFFIXES = ["_Head", "_Painted"];
+const PAINTED_SUFFIXES = ["_Head", "_Painted", "_Hair"];
 const PBR_KEY = "pbrMaterial";
 
 const gradients = new Map<number[], THREE.DataTexture>();

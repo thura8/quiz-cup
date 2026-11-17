@@ -161,4 +161,5 @@ export const GRANDMA: CharacterSpec = {
     lens: "#e6eef5",
   },
   poses: POSES,
+  stageScale: 0.9,
 };

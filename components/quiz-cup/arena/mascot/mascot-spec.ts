@@ -34,6 +34,7 @@ export type MascotPalette = {
   cuff?: string;
   sole?: string;
   trim?: string;
+  trouserCuff?: string;
   metal?: string;
   belt?: string;
   buckle?: string;
@@ -64,9 +65,16 @@ export type HeadTraceTuning = {
   hairMaxLuma: number;
   hairMaxWarmth: number;
   frontHairWins: boolean;
+  frontHairMinNz?: number;
+  fadeFaceEdge?: boolean;
   clearDrawnEars: boolean;
   faceSlim: number;
+  /** Rounds the cranium: pulls the back of the skull in and the forehead back above `from` (metres). */
+  roundHead?: { from: number; backScale: number; foreheadIn: number };
+  fitJaw?: boolean;
+  drape?: { top: number; bottom: number; excludeBelow: number; maxFront?: number };
   hairMinLuma?: number;
+  hairMinWarmth?: number;
   hairMaxChroma?: number;
   bands: {
     headBottom: number;
@@ -82,8 +90,8 @@ export type HeadTraceTuning = {
 };
 
 export type OutfitDetails = {
-  strip: { bottom: number; top: number; halfBottom: number; halfTop: number; pattern: boolean };
-  lapel: { start: number; full: number; width: number };
+  strip?: { bottom: number; top: number; halfBottom: number; halfTop: number; pattern: boolean };
+  lapel?: { start: number; full: number; width: number };
   belt?: { y: [number, number]; half: number; buckleHalf: number };
   hemBand?: number;
   buttons: number[];
@@ -94,6 +102,7 @@ export type OutfitDetails = {
   flaps?: { y: [number, number]; x: [number, number] };
   pocketLines: { y: number; x: [number, number]; rise?: number }[];
   backSeamTop?: number;
+  logo?: { text: string; y: number; height: number; color: string; outline?: string };
 };
 
 export type CharacterSpec = {
@@ -118,17 +127,29 @@ export type CharacterSpec = {
     shoulderRadius: number;
     elbowRadius: number;
     folds?: boolean;
+    short?: { end: number; hemRadius: number; skin: Profile };
     cuff: { from: number; to: number; profile: Profile; material: "shirt" | "cuff" };
   };
   hands: Sides<HandStyle>;
   seat: { center: Vec3; radii: Vec3 };
-  leg: { top: Sides<Vec3>; ankle: Sides<Vec3>; profile: Profile };
-  shoe: { center: Sides<Vec3>; size: Vec3; toeOut: number };
+  leg: {
+    top: Sides<Vec3>;
+    ankle: Sides<Vec3>;
+    profile: Profile;
+    rolledCuff?: { from: number; radius: number };
+    bareAnkle?: { length: number; radius: number };
+  };
+  shoe: { center: Sides<Vec3>; size: Vec3; toeOut: number; toeCap?: boolean };
+  beltBand?: { y: [number, number]; radius: number; depthRatio: number; centerZ: number; buckle: [number, number] };
   head: { center: Vec3; radii: Vec3 };
   neck: { from: Vec3; to: Vec3; radius: number };
   trace: HeadTraceTuning;
   reshapeTemples: boolean;
-  noseStyle?: { minDepth: number; frontOnly: boolean };
+  hideEars?: boolean;
+  /** Soften hard hair/skin edges left on the head texture at the temples and beard sides. */
+  softenSeams?: boolean;
+  noseStyle?: { minDepth: number; frontOnly: boolean; width?: number; height?: number; yOffset?: number; hidden?: boolean; wedge?: boolean };
   glasses?: GlassesSpec;
   poses: PoseSet;
+  stageScale?: number;
 };

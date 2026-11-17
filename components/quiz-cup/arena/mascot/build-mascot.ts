@@ -12,6 +12,9 @@ import {
 } from "./head-loft";
 import { cone, earGeometry, ellipsoid, limb, orientedEllipsoid, outlineOf, shoe, v3 } from "./mascot-parts";
 import { reshapeTemples } from "./head-temples";
+import { softenSeams } from "./head-seams";
+import { HairDrape } from "./hair-drape";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { foldTexture, jacketTexture, ribTexture, trouserTexture } from "./mascot-textures";
 
 export const OUTLINE_PREFIX = "Outline_";
@@ -24,6 +27,11 @@ const SOLE_GROWTH = 1.04;
 const FRONT = new THREE.Vector3(0, 0, 1);
 const CORD_SEGMENTS = 4;
 const HOOD_RIM_POINTS = 24;
+const HAIR_TEXTURE_SIZE = 512;
+const BUCKLE_DEPTH = 0.008;
+const TOE_CAP_REACH = 0.3;
+const SLEEVE_HEM_LENGTH = 0.06;
+const SLEEVE_SKIN_OVERLAP = 0.1;
 const GLASSES_LENS_OPACITY = 0.12;
 const GLASSES_WRAP = 0.18;
 const GLASSES_BRIDGE_GAP = 0.004;
@@ -61,6 +69,7 @@ type MaterialMaps = {
   trousers: THREE.Texture;
   cuff: THREE.Texture | null;
   folds: THREE.Texture | null;
+  hair: THREE.Texture | null;
 };
 
 function createMaterials(spec: CharacterSpec, maps: MaterialMaps) {
@@ -88,10 +97,14 @@ function createMaterials(spec: CharacterSpec, maps: MaterialMaps) {
     cord: cloth("Cord", P.trim ?? P.shirt),
     metal: cloth("Metal", P.metal ?? "#c8c8cc", { roughness: 0.35, metalness: 0.5 }),
     trousers: cloth("Trousers", "#ffffff", { map: maps.trousers }),
+    trouserCuff: cloth("TrouserCuff", P.trouserCuff ?? P.trousers),
     shoes: cloth("Shoes", P.shoes, { roughness: 0.35 }),
     sole: cloth("Sole", P.sole ?? P.shoes, { roughness: 0.5 }),
     skin: cloth("Skin", P.skin, { roughness: 0.6 }),
     head: cloth("Head", "#ffffff", { map: maps.head, roughness: 0.6 }),
+    hair: cloth("Hair", "#ffffff", { map: maps.hair, roughness: 0.7, side: THREE.DoubleSide }),
+    belt: cloth("Belt", P.belt ?? P.outline, { roughness: 0.5 }),
+    buckle: cloth("Buckle", P.buckle ?? "#c9a43a", { roughness: 0.3, metalness: 0.6 }),
     painted: cloth("Painted", "#ffffff", { vertexColors: true, roughness: 0.6 }),
     mic: cloth("Mic", P.mic ?? P.outline, { roughness: 0.35, metalness: 0.4 }),
     micGrille: cloth("MicGrille", P.micGrille ?? P.outline, {
@@ -272,9 +285,40 @@ function addGlasses(
   ]);
 }
 
-export type MascotOptions = { spec: CharacterSpec; head?: HeadProfile | null; paint?: Painter | null };
+export type MascotOptions = {
+  spec: CharacterSpec;
+  head?: HeadProfile | null;
+  paint?: Painter | null;
+  hairPaint?: Painter | null;
+};
 
-export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
+/**
+ * Turns the nose ellipsoid into a wedge: narrow and flush with the face at the
+ * bridge, widening and standing proud toward the tip, so it grows out of the
+ * face instead of sitting on it like a pad.
+ */
+function wedgeNose(geometry: THREE.BufferGeometry, centerY: number, base: number) {
+  const position = geometry.getAttribute("position");
+  let low = Infinity;
+  let high = -Infinity;
+  for (let i = 0; i < position.count; i++) {
+    low = Math.min(low, position.getY(i));
+    high = Math.max(high, position.getY(i));
+  }
+  const centerX = (geometry.boundingBox ?? new THREE.Box3().setFromBufferAttribute(position as THREE.BufferAttribute)).getCenter(new THREE.Vector3()).x;
+  for (let i = 0; i < position.count; i++) {
+    const t = THREE.MathUtils.clamp((position.getY(i) - low) / (high - low || 1), 0, 1);
+    const grow = THREE.MathUtils.lerp(0.25, 1, t);
+    position.setX(i, centerX + (position.getX(i) - centerX) * THREE.MathUtils.lerp(0.4, 1, t));
+    position.setZ(i, base + Math.max(0, position.getZ(i) - base) * grow - 0.002 * (1 - t));
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  void centerY;
+}
+
+export function buildMascot({ spec, head, paint, hairPaint }: MascotOptions): MascotBuild {
   const root = new THREE.Group();
   root.name = spec.rootName;
   const geometries: THREE.BufferGeometry[] = [];
@@ -285,7 +329,9 @@ export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
   const painter = paint ?? fallback;
   const { geometry: jacket, profile: jacketProfile } = jacketGeometry(spec);
   const headTexture = bakeHeadTexture(loft, painter, fallback);
+  const drape = profile.drape && profile.drape.length > 1 ? new HairDrape(profile.drape, profile.centerX) : null;
   if (head && spec.reshapeTemples) reshapeTemples(headTexture.image as HTMLCanvasElement);
+  if (head && spec.softenSeams) softenSeams(headTexture.image as HTMLCanvasElement);
   const P = spec.palette;
   const maps: MaterialMaps = {
     head: headTexture,
@@ -293,6 +339,7 @@ export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
     trousers: trouserTexture(spec),
     cuff: spec.outfit.ribbed ? ribTexture(P.cuff ?? P.jacket, P.lapel) : null,
     folds: spec.sleeve.folds ? foldTexture(P.jacket, P.lapel) : null,
+    hair: drape ? bakeHeadTexture(drape, hairPaint ?? fallback, fallback, HAIR_TEXTURE_SIZE) : null,
   };
   const textures = Object.values(maps).filter((texture): texture is THREE.Texture => !!texture);
   const m: Materials = createMaterials(spec, maps);
@@ -340,6 +387,32 @@ export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
   for (const side of ["L", "R"] as const) {
     const sign = side === "L" ? 1 : -1;
     add("Hips", `Leg${side}`, limb(spec.leg.top[side], spec.leg.ankle[side], spec.leg.profile), m.trousers);
+    const { rolledCuff, bareAnkle } = spec.leg;
+    const hip = v3(spec.leg.top[side]);
+    const ankle = v3(spec.leg.ankle[side]);
+    if (rolledCuff) {
+      add(
+        "Hips",
+        `TrouserCuff${side}`,
+        limb(hip.clone().lerp(ankle, rolledCuff.from), ankle, [
+          [rolledCuff.radius, 0],
+          [rolledCuff.radius, 1],
+        ]),
+        m.trouserCuff,
+      );
+    }
+    if (bareAnkle) {
+      add(
+        "Hips",
+        `Ankle${side}`,
+        limb(ankle, ankle.clone().add(new THREE.Vector3(0, -bareAnkle.length, 0)), [
+          [bareAnkle.radius, 0],
+          [bareAnkle.radius, 1],
+        ]),
+        m.skin,
+        false,
+      );
+    }
     add("Hips", `Shoe${side}`, shoe(spec.shoe.center[side], spec.shoe.size, sign * spec.shoe.toeOut), m.shoes);
     if (spec.palette.sole) {
       const [width, height, length] = spec.shoe.size;
@@ -355,6 +428,23 @@ export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
         ),
         m.sole,
       );
+      if (spec.shoe.toeCap) {
+        const [width, height, length] = spec.shoe.size;
+        const [x, y, z] = spec.shoe.center[side];
+        const yaw = sign * spec.shoe.toeOut;
+        const reach = length * TOE_CAP_REACH;
+        add(
+          "Hips",
+          `ToeCap${side}`,
+          ellipsoid(
+            [x + Math.sin(yaw) * reach, y - height * 0.12, z + Math.cos(yaw) * reach],
+            [width * 0.52, height * 0.34, length * 0.2],
+            20,
+          ),
+          m.sole,
+          false,
+        );
+      }
     }
 
     const upper = `UpperArm${side}` as const;
@@ -375,23 +465,36 @@ export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
       m.sleeve,
       false,
     );
-    add(upper, `Sleeve${side}`, limb(shoulder, elbow, sleeve.upper), m.sleeve);
-    add(
-      fore,
-      `Elbow${side}`,
-      ellipsoid(elbow, [sleeve.elbowRadius, sleeve.elbowRadius, sleeve.elbowRadius], 16),
-      m.sleeve,
-      false,
-    );
-    add(fore, `Forearm${side}`, limb(elbow, wrist, sleeve.forearm), sleeve.folds ? m.sleeveFolds : m.sleeve);
-    const cuffStart = wrist.clone().addScaledVector(along, sleeve.cuff.from);
-    const cuffEnd = wrist.clone().addScaledVector(along, sleeve.cuff.to);
-    add(
-      fore,
-      `Cuff${side}`,
-      limb(cuffStart, cuffEnd, sleeve.cuff.profile),
-      sleeve.cuff.material === "shirt" ? m.shirt : m.cuff,
-    );
+    const elbowBall = ellipsoid(elbow, [sleeve.elbowRadius, sleeve.elbowRadius, sleeve.elbowRadius], 16);
+    if (sleeve.short) {
+      const { end, hemRadius, skin } = sleeve.short;
+      const hem = shoulder.clone().lerp(elbow, end);
+      add(upper, `Sleeve${side}`, limb(shoulder, hem, sleeve.upper), m.sleeve);
+      add(
+        upper,
+        `SleeveHem${side}`,
+        limb(shoulder.clone().lerp(elbow, end - SLEEVE_HEM_LENGTH), hem, [
+          [hemRadius, 0],
+          [hemRadius, 1],
+        ]),
+        m.sleeve,
+      );
+      add(upper, `UpperArmSkin${side}`, limb(shoulder.clone().lerp(elbow, end - SLEEVE_SKIN_OVERLAP), elbow, skin), m.skin);
+      add(fore, `Elbow${side}`, elbowBall, m.skin, false);
+      add(fore, `Forearm${side}`, limb(elbow, wrist, sleeve.forearm), m.skin);
+    } else {
+      add(upper, `Sleeve${side}`, limb(shoulder, elbow, sleeve.upper), m.sleeve);
+      add(fore, `Elbow${side}`, elbowBall, m.sleeve, false);
+      add(fore, `Forearm${side}`, limb(elbow, wrist, sleeve.forearm), sleeve.folds ? m.sleeveFolds : m.sleeve);
+      const cuffStart = wrist.clone().addScaledVector(along, sleeve.cuff.from);
+      const cuffEnd = wrist.clone().addScaledVector(along, sleeve.cuff.to);
+      add(
+        fore,
+        `Cuff${side}`,
+        limb(cuffStart, cuffEnd, sleeve.cuff.profile),
+        sleeve.cuff.material === "shirt" ? m.shirt : m.cuff,
+      );
+    }
 
     if (spec.hands[side] === "open") {
       const palm = wrist.clone().addScaledVector(along, 0.075);
@@ -508,7 +611,7 @@ export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
   }
   if (spec.outfit.zipper) {
     const y = spec.jacket.profile[0][1] + ZIPPER_PULL_ABOVE_HEM;
-    const x = -(spec.outfit.strip.halfBottom + 0.006);
+    const x = -((spec.outfit.strip?.halfBottom ?? 0) + 0.006);
     const z = jacketFrontZ(spec, jacketProfile, x, y) + 0.004;
     add("Spine", "ZipperPull", ellipsoid([x, y, z], [0.006, 0.014, 0.003], 12), m.metal, false);
   }
@@ -524,22 +627,35 @@ export function buildMascot({ spec, head, paint }: MascotOptions): MascotBuild {
   );
 
   add("Head", "Head", loft.geometry(), m.head);
-  if (profile.nose) {
+  if (profile.nose && !spec.noseStyle?.hidden) {
     const { y, base, tip } = profile.nose;
     const depth = Math.max((tip - base) / 2, spec.noseStyle?.minDepth ?? 0);
-    const nose = ellipsoid([profile.centerX, y + 0.008, base + depth], [0.015, 0.026, depth], 16);
+    const nose = ellipsoid([profile.centerX, y + (spec.noseStyle?.yOffset ?? 0.008), base + depth], [spec.noseStyle?.width ?? 0.015, spec.noseStyle?.height ?? 0.026, depth], 16);
+    if (spec.noseStyle?.wedge) wedgeNose(nose, y + (spec.noseStyle.yOffset ?? 0.008), base);
     const nosePainter: Painter = spec.noseStyle?.frontOnly ? (point) => painter(point, FRONT) : painter;
     add("Head", "Nose", paintVertexColors(nose, nosePainter, fallback), m.painted, false);
   }
   const earRim = new THREE.Color(spec.palette.skin);
   const earInner = earRim.clone().offsetHSL(-0.01, 0.05, -0.12);
-  for (const side of ["L", "R"] as const) {
+  for (const side of spec.hideEars ? [] : (["L", "R"] as const)) {
     const sign = side === "L" ? 1 : -1;
     const { y, halfWidth, z } = profile.ear;
     const center = new THREE.Vector3(profile.centerX + sign * (halfWidth + EAR_OUTSET), y, z);
     add("Head", `Ear${side}`, earGeometry(center, sign, earRim, earInner), m.painted);
   }
 
+  if (drape) add("Head", "HairDrape", drape.geometry(), m.hair);
+  if (spec.beltBand) {
+    const { y, radius, depthRatio, centerZ, buckle } = spec.beltBand;
+    const band = new THREE.CylinderGeometry(radius, radius, y[1] - y[0], 48, 1, true);
+    band.scale(1, 1, depthRatio);
+    band.translate(0, (y[0] + y[1]) / 2, centerZ);
+    add("Hips", "Belt", band, m.belt);
+    const [width, height] = buckle;
+    const plate = new RoundedBoxGeometry(width, height, BUCKLE_DEPTH, 2, BUCKLE_DEPTH * 0.4);
+    plate.translate(0, (y[0] + y[1]) / 2, centerZ + radius * depthRatio + BUCKLE_DEPTH * 0.3);
+    add("Hips", "Buckle", plate, m.buckle);
+  }
   if (spec.glasses) addGlasses(spec.glasses, loft, profile, (name, geometry, material) => add("Head", name, geometry, material, false), m);
 
   root.updateMatrixWorld(true);

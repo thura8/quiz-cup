@@ -9,6 +9,7 @@ const ZIPPER_TAPE = 0.006;
 const POCKET_HALF = 0.0018;
 const RIB_PITCH = 0.011;
 const RIB_WIDTH = 0.0025;
+const LOGO_OUTLINE_SHARE = 0.06;
 const HEM_OUTLINE = 0.007;
 const UNDER_STRIP_WIDENING = 0.35;
 
@@ -20,6 +21,7 @@ function toTexture(canvas: HTMLCanvasElement) {
 }
 
 function shirtHalf({ strip }: OutfitDetails, y: number, radius: number) {
+  if (!strip) return 0;
   const t = THREE.MathUtils.clamp((y - strip.bottom) / (strip.top - strip.bottom), 0, 1);
   return Math.min(radius * 0.8, THREE.MathUtils.lerp(strip.halfBottom, strip.halfTop, t));
 }
@@ -29,7 +31,7 @@ export function jacketTexture(spec: CharacterSpec, profile: THREE.Vector2[]) {
   const outfit = spec.outfit;
   const { strip, lapel, belt, flaps } = outfit;
   const hemOutlineBelow = spec.jacket.profile[0][1] + HEM_OUTLINE;
-  const underStripFrom = belt ? belt.y[0] : strip.bottom;
+  const underStripFrom = belt ? belt.y[0] : (strip?.bottom ?? 0);
   const size = JACKET_TEXTURE_SIZE;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
@@ -76,7 +78,9 @@ export function jacketTexture(spec: CharacterSpec, profile: THREE.Vector2[]) {
       span(-radius, radius, P.cuff ?? P.jacket);
       if (outfit.ribbed) for (let x = -radius; x < radius; x += RIB_PITCH) span(x, x + RIB_WIDTH, P.lapel);
     }
-    if (y >= (belt ? belt.y[1] : strip.bottom)) {
+    if (!strip) {
+      // A closed garment: no opening down the front.
+    } else if (y >= (belt ? belt.y[1] : strip.bottom)) {
       const half = shirtHalf(outfit, y, radius);
       span(-half, half, P.shirt);
       if (strip.pattern && P.shirtPattern && row % 7 === 0) {
@@ -84,7 +88,7 @@ export function jacketTexture(spec: CharacterSpec, profile: THREE.Vector2[]) {
         const shift = (row / 7) % 2 ? 0.006 : 0;
         for (let x = -half + 0.004 + shift; x < half - 0.004; x += 0.012) context.fillRect(px(x), row, 2, 2);
       }
-      if (y > lapel.start) {
+      if (lapel && y > lapel.start) {
         const width = lapel.width * THREE.MathUtils.smoothstep(y, lapel.start, lapel.full);
         span(half, half + width, P.lapel);
         span(-half - width, -half, P.lapel);
@@ -134,6 +138,28 @@ export function jacketTexture(spec: CharacterSpec, profile: THREE.Vector2[]) {
     return best;
   };
   const metersPerRow = Math.abs(rowY[rowOf(1.0)] - rowY[rowOf(1.0) + 1]);
+  if (outfit.logo) {
+    const { text, y, height, color, outline } = outfit.logo;
+    const row = rowOf(y);
+    const rowsPerMeter = 1 / Math.abs(rowY[row] - rowY[Math.min(size - 1, row + 1)]);
+    const columnsPerMeter = size / (Math.PI * 2 * rowRadius[row]);
+    const fontRows = height * rowsPerMeter;
+    context.save();
+    context.translate(size / 2, row);
+    context.scale(columnsPerMeter / rowsPerMeter, 1);
+    context.font = `900 ${fontRows}px "Arial Rounded MT Bold", "Nunito", system-ui, sans-serif`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    if (outline) {
+      context.lineWidth = fontRows * LOGO_OUTLINE_SHARE;
+      context.strokeStyle = outline;
+      context.lineJoin = "round";
+      context.strokeText(text, 0, 0);
+    }
+    context.fillStyle = color;
+    context.fillText(text, 0, 0);
+    context.restore();
+  }
   const dot = (x: number, y: number, dotRadius: number, color: string) => {
     const row = rowOf(y);
     const radius = rowRadius[row];

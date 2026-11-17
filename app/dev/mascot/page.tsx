@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 import { type ConceptArt, VIEW_NAMES, loadConceptArt } from "./concept-art";
 import { eraseGlasses } from "./erase-glasses";
-import { createPainter, traceHead } from "./head-trace";
+import { createHairPainter, createPainter, traceHead } from "./head-trace";
 import { downloadGlb, exportMascotGlb, parseGlb, saveToArena } from "./export-glb";
 import MascotStage, {
   type CameraView,
@@ -127,13 +127,19 @@ export default function MascotLab() {
   const art = loaded?.id === characterId ? loaded.art : null;
 
   const traced = useMemo(() => {
-    if (!art) return { head: null, paint: null, error: "" };
+    if (!art) return { head: null, paint: null, hairPaint: null, error: "" };
     const paintArt = spec.glasses ? eraseGlasses(art, spec.glasses) : art;
     try {
       const head = traceHead(art, spec.trace);
-      return { head, paint: createPainter(paintArt, head, spec.trace), error: "" };
+      const hairPaint = spec.trace.drape ? createHairPainter(paintArt, spec.trace) : null;
+      return { head, paint: createPainter(paintArt, head, spec.trace), hairPaint, error: "" };
     } catch (error) {
-      return { head: null, paint: createPainter(paintArt, null, spec.trace), error: (error as Error).message };
+      return {
+        head: null,
+        paint: createPainter(paintArt, null, spec.trace),
+        hairPaint: null,
+        error: (error as Error).message,
+      };
     }
   }, [art, spec]);
   const isClient = useSyncExternalStore(
@@ -142,7 +148,7 @@ export default function MascotLab() {
     () => false,
   );
   const built = useMemo(
-    () => (isClient && art ? buildMascot({ spec, head: traced.head, paint: traced.paint }) : null),
+    () => (isClient && art ? buildMascot({ spec, head: traced.head, paint: traced.paint, hairPaint: traced.hairPaint }) : null),
     [isClient, art, spec, traced],
   );
   useEffect(() => () => built?.dispose(), [built]);
@@ -154,7 +160,7 @@ export default function MascotLab() {
     async (download: boolean) => {
       try {
         setMessage("Exporting…");
-        const buffer = await exportMascotGlb({ spec, head: traced.head, paint: traced.paint });
+        const buffer = await exportMascotGlb({ spec, head: traced.head, paint: traced.paint, hairPaint: traced.hairPaint });
         const fileName = `${spec.id}.glb`;
         if (download) downloadGlb(buffer, fileName);
         const saved = await saveToArena(buffer, spec.id);

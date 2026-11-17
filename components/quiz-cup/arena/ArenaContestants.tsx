@@ -2,7 +2,7 @@
 
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
@@ -15,6 +15,8 @@ import {
 import type { QuizCupArenaPlayer } from "@/types/quiz-cup";
 
 import { drawNameTexture } from "./arena-utils";
+import { CASUAL, CONTESTANT, GRANDMA, STUDENT } from "./mascot/characters";
+import { setToon } from "./mascot/toon";
 import { PlayerRig } from "./player-rig";
 import { type SlotHandles, statusLeds, usePodiums } from "./use-podiums";
 
@@ -24,6 +26,8 @@ const TAG_HEIGHT = 2.0;
 const NAME_SEPARATOR = "\u0000";
 const FLASH_DURATION = 0.7;
 const MAX_FRAME_DELTA = 0.1;
+const CAST = [STUDENT, GRANDMA, CASUAL, CONTESTANT];
+const CAST_MODELS = CAST.map((spec) => spec.glb);
 const tagPoint = new THREE.Vector3();
 
 const nowInSeconds = () => performance.now() / 1000;
@@ -57,23 +61,50 @@ function usePageFont() {
   return useMemo(() => getComputedStyle(document.body).fontFamily || "system-ui, sans-serif", []);
 }
 
+function seededRandom(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function dealCast(count: number, seed: number) {
+  const deck = Array.from({ length: count }, (_, i) => i % CAST.length);
+  const random = seededRandom(seed);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
 function useCharacters(slots: PodiumSlot[]) {
-  const { scene: playerScene } = useGLTF(ARENA_MODELS.player);
-  return useMemo(
-    () =>
-      slots.map((slot, i) => {
-        const root = cloneSkinned(playerScene);
-        root.position.set(...playerSpot(slot));
-        root.rotation.y = slot.yaw;
-        root.scale.setScalar(characterScale(slot));
-        root.traverse((object) => {
-          object.castShadow = false;
-          object.frustumCulled = true;
-        });
-        return { root, rig: new PlayerRig(root, i + 1) };
-      }),
-    [playerScene, slots],
-  );
+  const models = useGLTF(CAST_MODELS);
+  const [seed] = useState(() => Math.floor(Math.random() * 2 ** 31));
+  const characters = useMemo(() => {
+    const deck = dealCast(slots.length, seed);
+    return slots.map((slot, i) => {
+      const spec = CAST[deck[i]];
+      const root = cloneSkinned(models[deck[i]].scene);
+      root.position.set(...playerSpot(slot));
+      root.rotation.y = slot.yaw;
+      root.scale.setScalar(characterScale(slot) * (spec.stageScale ?? 1));
+      root.traverse((object) => {
+        object.castShadow = false;
+        object.frustumCulled = true;
+      });
+      return { root, rig: new PlayerRig(root, i + 1, spec.poses) };
+    });
+  }, [models, slots, seed]);
+  useEffect(() => {
+    characters.forEach(({ root }) => setToon(root, true));
+    return () => characters.forEach(({ root }) => setToon(root, false));
+  }, [characters]);
+  return characters;
 }
 
 function useNameScreens(handles: SlotHandles[], players: QuizCupArenaPlayer[]) {
@@ -168,6 +199,6 @@ function ArenaContestants({ players, slots, castShadows, onLayout, tags }: Props
 export default memo(ArenaContestants);
 
 export function preloadArenaContestants() {
-  useGLTF.preload(ARENA_MODELS.player);
+  CAST_MODELS.forEach((url) => useGLTF.preload(url));
   useGLTF.preload(ARENA_MODELS.host);
 }

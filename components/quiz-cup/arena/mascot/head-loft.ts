@@ -10,6 +10,7 @@ export type HeadProfile = {
   nose: { y: number; base: number; tip: number } | null;
   ear: { y: number; halfWidth: number; z: number };
   chinY: number;
+  drape?: HeadRow[];
 };
 
 export type Rgb = [number, number, number];
@@ -183,7 +184,7 @@ export function fallbackPaint(profile: HeadProfile, palette: MascotPalette): Pai
   };
 }
 
-export function bakeHeadTexture(loft: HeadLoft, paint: Painter, fallback: Painter, size = 1024) {
+export function bakeHeadTexture(loft: Pick<HeadLoft, "point" | "normal">, paint: Painter, fallback: Painter, size = 1024) {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   const context = canvas.getContext("2d")!;

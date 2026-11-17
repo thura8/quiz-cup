@@ -21,7 +21,6 @@ function buildHost(scene: THREE.Object3D) {
   root.traverse((object) => {
     if ((object as THREE.Mesh).isMesh) object.castShadow = true;
   });
-  setToon(root, true);
   placeHost(root, HOST_SCALE);
   return { root, rig: new PlayerRig(root, HOST_RIG_SEED, HOST.poses) };
 }
@@ -30,7 +29,10 @@ function ArenaHost() {
   const { scene } = useGLTF(ARENA_MODELS.host);
   const { root, rig } = useMemo(() => buildHost(scene), [scene]);
 
-  useEffect(() => () => setToon(root, false), [root]);
+  useEffect(() => {
+    setToon(root, true);
+    return () => setToon(root, false);
+  }, [root]);
 
   useFrame((state, delta) => rig.update(state.clock.elapsedTime, Math.min(delta, 0.1), "idle"));
 

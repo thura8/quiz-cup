@@ -22,6 +22,10 @@ const SKIN_RED_OVER_BLUE = 30;
 const NOSE_MIN_DEPTH = 0.004;
 const SMOOTH_PASSES = 4;
 const NECK_STEP = 0.01;
+const HAIR_MIN_RUN = 6;
+const HAIR_MAX_GAP = 10;
+const DRAPE_SMOOTH_PASSES = 8;
+const DRAPE_WINDOW: { front: Extent; side: Extent } = { front: [-0.3, 0.3], side: [-0.32, 0.2] };
 const JAW_BLEND = 0.012;
 const UNDER_JAW_TAPER = 0.03;
 const FRONT_HAIR_MIN_NZ = -0.2;
@@ -59,7 +63,9 @@ function isCloth(rgba: Uint8ClampedArray, i: number) {
   return blue > rgba[i] + CLOTH_BLUE_MARGIN && blue > rgba[i + 1] + CLOTH_BLUE_MARGIN;
 }
 
-function rowExtent(art: ConceptArt, view: ArtView, y: number, [from, to]: Extent): Extent | null {
+type PixelSkip = (rgba: Uint8ClampedArray, i: number) => boolean;
+
+function rowExtent(art: ConceptArt, view: ArtView, y: number, [from, to]: Extent, skip?: PixelSkip): Extent | null {
   const [, py] = toPixel(view, 0, y);
   const row = Math.round(py);
   if (row < 0 || row >= art.height) return null;
@@ -69,7 +75,7 @@ function rowExtent(art: ConceptArt, view: ArtView, y: number, [from, to]: Extent
   let max = -1;
   for (let x = x0; x <= x1; x++) {
     const i = (row * art.width + x) * 4;
-    if (art.rgba[i + 3] < OPAQUE || isCloth(art.rgba, i)) continue;
+    if (art.rgba[i + 3] < OPAQUE || isCloth(art.rgba, i) || skip?.(art.rgba, i)) continue;
     if (min < 0) min = x;
     max = x;
   }
@@ -78,9 +84,9 @@ function rowExtent(art: ConceptArt, view: ArtView, y: number, [from, to]: Extent
   return [lateral(min), lateral(max + 1)];
 }
 
-function depthExtent(art: ConceptArt, y: number): Extent | null {
-  const right = rowExtent(art, art.views.right, y, SIDE_WINDOW.right);
-  const left = rowExtent(art, art.views.left, y, SIDE_WINDOW.left);
+function depthExtent(art: ConceptArt, y: number, skip?: PixelSkip): Extent | null {
+  const right = rowExtent(art, art.views.right, y, SIDE_WINDOW.right, skip);
+  const left = rowExtent(art, art.views.left, y, SIDE_WINDOW.left, skip);
   const fromLeft: Extent | null = left && [-left[1], -left[0]];
   if (right && fromLeft) return [(right[0] + fromLeft[0]) / 2, (right[1] + fromLeft[1]) / 2];
   return right ?? fromLeft;
@@ -177,18 +183,18 @@ function neckRow({ radius, z }: HeadTraceTuning["neck"], y: number): TracedRow {
   return { y, halfWidth: radius, front: z + radius, back: z - radius, centerX: 0 };
 }
 
-function taperUnderJaw(rows: TracedRow[], chinY: number) {
+function taperUnderJaw(rows: TracedRow[], chinY: number, neckRadius: number) {
   let narrowest = Infinity;
   for (let i = rows.length - 1; i >= 0; i--) {
     const row = rows[i];
     if (row.y > chinY + UNDER_JAW_TAPER) continue;
-    narrowest = Math.min(narrowest, row.halfWidth);
-    row.halfWidth = narrowest;
+    narrowest = Math.max(Math.min(narrowest, row.halfWidth), neckRadius);
+    row.halfWidth = Math.min(row.halfWidth, narrowest);
   }
 }
 
 function joinNeck(rows: TracedRow[], chinY: number, napeY: number, neckSize: HeadTraceTuning["neck"]) {
-  taperUnderJaw(rows, chinY);
+  taperUnderJaw(rows, chinY, neckSize.radius);
   for (const row of rows) {
     const neck = neckRow(neckSize, row.y);
     if (row.y < chinY) {
@@ -232,6 +238,14 @@ function fitJawWidth(art: ConceptArt, rows: TracedRow[], chinY: number) {
   }
 }
 
+function roundHead(rows: TracedRow[], { from, backScale, foreheadIn }: NonNullable<HeadTraceTuning["roundHead"]>) {
+  for (const row of rows) {
+    const w = THREE.MathUtils.smoothstep(row.y, from, from + 0.05);
+    row.back *= 1 - (1 - backScale) * w;
+    row.front -= foreheadIn * w;
+  }
+}
+
 function slimFace(rows: TracedRow[], chinY: number, faceSlim: number, slimTop: number) {
   for (const row of rows) {
     const fromChin = THREE.MathUtils.smoothstep(row.y, chinY, chinY + FACE_SLIM_IN);
@@ -262,12 +276,102 @@ function findChin(rows: TracedRow[], search: [number, number]) {
   return chinY;
 }
 
+function hairPixelTest(tuning: HeadTraceTuning): PixelSkip {
+  const isHair = hairTest(tuning);
+  return (rgba, i) => isHair([rgba[i], rgba[i + 1], rgba[i + 2]]);
+}
+
+function hairRunExtent(
+  art: ConceptArt,
+  view: ArtView,
+  y: number,
+  [from, to]: Extent,
+  isHairPixel: PixelSkip,
+  startAt?: "min" | "max",
+) {
+  const [, py] = toPixel(view, 0, y);
+  const row = Math.round(py);
+  if (row < 0 || row >= art.height) return null;
+  const x0 = Math.max(view.left, Math.round(toPixel(view, from, y)[0]));
+  const x1 = Math.min(view.right, Math.round(toPixel(view, to, y)[0]));
+  const step = startAt === "max" ? -1 : 1;
+  let first = -1;
+  let last = -1;
+  let run = 0;
+  let gap = 0;
+  for (let x = step > 0 ? x0 : x1; step > 0 ? x <= x1 : x >= x0; x += step) {
+    const i = (row * art.width + x) * 4;
+    const hair = art.rgba[i + 3] >= OPAQUE && isHairPixel(art.rgba, i);
+    run = hair ? run + 1 : 0;
+    gap = hair ? 0 : gap + 1;
+    if (startAt && first >= 0 && gap > HAIR_MAX_GAP) break;
+    if (run < HAIR_MIN_RUN) continue;
+    if (first < 0) first = x - step * (HAIR_MIN_RUN - 1);
+    last = x;
+  }
+  if (first < 0) return null;
+  const lateral = (px: number) => (px - view.feetX) * view.metersPerPixel;
+  const [min, max] = step > 0 ? [first, last] : [last, first];
+  return [lateral(min), lateral(max + 1)] as Extent;
+}
+
+function traceHairDrape(art: ConceptArt, tuning: HeadTraceTuning): HeadRow[] {
+  const { top, bottom } = tuning.drape!;
+  const isHairPixel = hairPixelTest(tuning);
+  const rows: TracedRow[] = [];
+  for (let y = bottom; y <= top; y += ROW_STEP) {
+    const width = hairRunExtent(art, art.views.front, y, DRAPE_WINDOW.front, isHairPixel);
+    const right = hairRunExtent(art, art.views.right, y, DRAPE_WINDOW.side, isHairPixel, "min");
+    const leftRaw = hairRunExtent(
+      art,
+      art.views.left,
+      y,
+      [-DRAPE_WINDOW.side[1], -DRAPE_WINDOW.side[0]],
+      isHairPixel,
+      "max",
+    );
+    const left: Extent | null = leftRaw && [-leftRaw[1], -leftRaw[0]];
+    const depth = right && left ? ([(right[0] + left[0]) / 2, (right[1] + left[1]) / 2] as Extent) : (right ?? left);
+    if (!width || !depth) continue;
+    rows.push({
+      y,
+      halfWidth: Math.max(-width[0], width[1]),
+      centerX: 0,
+      back: depth[0],
+      front: Math.min(depth[1], tuning.drape!.maxFront ?? Infinity),
+    });
+  }
+  for (let pass = 0; pass < DRAPE_SMOOTH_PASSES; pass++)
+    (["halfWidth", "front", "back"] as const).forEach((key) => smooth(rows, key));
+  return rows.map(({ y, halfWidth, front, back }) => ({ y, halfWidth, front, back }));
+}
+
+export function createHairPainter(art: ConceptArt, tuning: HeadTraceTuning): Painter {
+  const hair = averageColor(art, tuning.hairSamples);
+  const isHair = hairTest(tuning);
+  return (point, normal) => {
+    let sum: Rgb = [0, 0, 0];
+    let total = 0;
+    for (const { view, dx, dz, lateral } of PROJECTIONS) {
+      const weight = Math.max(0, normal.x * dx + normal.z * dz) ** BLEND_SHARPNESS;
+      if (weight < 1e-3) continue;
+      const color = sample(art, art.views[view], lateral(point.x, point.z), point.y);
+      if (!color || !isHair(color)) continue;
+      sum = [sum[0] + color[0] * weight, sum[1] + color[1] * weight, sum[2] + color[2] * weight];
+      total += weight;
+    }
+    return total > 1e-4 ? [sum[0] / total, sum[1] / total, sum[2] / total] : hair;
+  };
+}
+
 export function traceHead(art: ConceptArt, tuning: HeadTraceTuning): HeadProfile {
   const rows: TracedRow[] = [];
   const { bands, neck } = tuning;
+  const hairPixel = hairPixelTest(tuning);
   for (let y = bands.headBottom; y < MASCOT_HEIGHT + 0.1; y += ROW_STEP) {
-    const width = rowExtent(art, art.views.front, y, SIDE_WINDOW.front);
-    const depth = depthExtent(art, y);
+    const skip = tuning.drape && y < tuning.drape.excludeBelow ? hairPixel : undefined;
+    const width = rowExtent(art, art.views.front, y, SIDE_WINDOW.front, skip);
+    const depth = depthExtent(art, y, skip);
     if (!width || !depth) break;
     rows.push({
       y,
@@ -287,10 +391,14 @@ export function traceHead(art: ConceptArt, tuning: HeadTraceTuning): HeadProfile
 
   const chinY = findChin(rows, bands.chin);
   const napeY = findNape(rows, chinY);
-  fitJawWidth(art, rows, chinY);
+  if (tuning.fitJaw !== false) fitJawWidth(art, rows, chinY);
   slimFace(rows, chinY, tuning.faceSlim, bands.slimTop);
   for (let pass = 0; pass < SMOOTH_PASSES; pass++)
     (["halfWidth", "front", "back"] as const).forEach((key) => smooth(rows, key));
+  if (tuning.roundHead) {
+    roundHead(rows, tuning.roundHead);
+    for (let pass = 0; pass < SMOOTH_PASSES; pass++) (["front", "back"] as const).forEach((key) => smooth(rows, key));
+  }
 
   joinNeck(rows, chinY, napeY, neck);
   for (let y = rows[0].y - NECK_STEP; y >= neck.bottom; y -= NECK_STEP) rows.unshift(neckRow(neck, y));
@@ -314,6 +422,7 @@ export function traceHead(art: ConceptArt, tuning: HeadTraceTuning): HeadProfile
     nose,
     ear: { y: earY, halfWidth: halfWidthAt(rows, earY), z: earZ },
     chinY,
+    drape: tuning.drape ? traceHairDrape(art, tuning) : undefined,
   };
 }
 
@@ -385,11 +494,20 @@ function sideColor(art: ConceptArt, point: { x: number; y: number; z: number }, 
 
 type HairTest = (color: Rgb) => boolean;
 
-function hairTest({ hairMinLuma = 0, hairMaxLuma, hairMaxWarmth, hairMaxChroma = 255 }: HeadTraceTuning): HairTest {
+function hairTest({
+  hairMinLuma = 0,
+  hairMaxLuma,
+  hairMinWarmth = -255,
+  hairMaxWarmth,
+  hairMaxChroma = 255,
+}: HeadTraceTuning): HairTest {
   return ([r, g, b]) => {
     const luma = 0.3 * r + 0.59 * g + 0.11 * b;
     const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-    return luma >= hairMinLuma && luma < hairMaxLuma && r - b < hairMaxWarmth && chroma <= hairMaxChroma;
+    const warmth = r - b;
+    return (
+      luma >= hairMinLuma && luma < hairMaxLuma && warmth >= hairMinWarmth && warmth < hairMaxWarmth && chroma <= hairMaxChroma
+    );
   };
 }
 
@@ -467,7 +585,7 @@ export function createPainter(art: ConceptArt, head: HeadProfile | null, tuning:
   const skin = averageColor(art, tuning.skinSamples);
   const hair = averageColor(art, tuning.hairSamples);
   const isHair = hairTest(tuning);
-  const edges = head && faceEdges(art, head, skin);
+  const edges = head && tuning.fadeFaceEdge !== false ? faceEdges(art, head, skin) : null;
   return (point, normal) => {
     const length = Math.hypot(normal.x, normal.z);
     const nx = length > 1e-3 ? normal.x / length : 0;
@@ -479,7 +597,7 @@ export function createPainter(art: ConceptArt, head: HeadProfile | null, tuning:
       tuning.frontHairWins &&
       fromSides &&
       !isHair(fromSides) &&
-      nz > FRONT_HAIR_MIN_NZ &&
+      nz > (tuning.frontHairMinNz ?? FRONT_HAIR_MIN_NZ) &&
       isHairAt(art, art.views.front, point.x, point.y, isHair)
     ) {
       fromSides = sample(art, art.views.front, point.x, point.y) ?? hair;
