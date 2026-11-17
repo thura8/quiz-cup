@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { ARENA_HOST_POSITION, ARENA_HOST_YAW } from "@/constants/quiz-cup-arena";
 import { STUDIO_SURFACES } from "@/constants/quiz-cup-studio";
 
 type LitMaterial = THREE.MeshStandardMaterial;
@@ -174,4 +175,17 @@ export function drawNameTexture(label: string, fontFamily: string) {
   texture.flipY = false;
   texture.anisotropy = 8;
   return texture;
+}
+
+const HOST_DISTANCE_BEHIND_DESK = 0.62;
+
+export function placeHost(root: THREE.Object3D, scale: number) {
+  const [x, y, z] = ARENA_HOST_POSITION;
+  root.position.set(
+    x - Math.sin(ARENA_HOST_YAW) * HOST_DISTANCE_BEHIND_DESK,
+    y,
+    z - Math.cos(ARENA_HOST_YAW) * HOST_DISTANCE_BEHIND_DESK,
+  );
+  root.rotation.y = ARENA_HOST_YAW;
+  root.scale.setScalar(scale);
 }

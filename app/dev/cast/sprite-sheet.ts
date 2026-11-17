@@ -23,6 +23,11 @@ export function loadImage(url: string) {
 }
 
 export function keyWhiteBackground(image: HTMLImageElement) {
+  const { canvas, rgba, width, height } = keyOutWhite(image);
+  return { canvas, frames: measureFrames(rgba, width, height) };
+}
+
+export function keyOutWhite(image: HTMLImageElement) {
   const width = image.naturalWidth;
   const height = image.naturalHeight;
   const canvas = document.createElement("canvas");
@@ -39,7 +44,7 @@ export function keyWhiteBackground(image: HTMLImageElement) {
   applyAlpha(rgba, background, edge);
 
   context.putImageData(imageData, 0, 0);
-  return { canvas, frames: measureFrames(rgba, width, height) };
+  return { canvas, rgba, width, height };
 }
 
 function findWhitePixels(rgba: Uint8ClampedArray, pixelCount: number) {

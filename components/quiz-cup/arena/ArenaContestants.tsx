@@ -169,4 +169,5 @@ export default memo(ArenaContestants);
 
 export function preloadArenaContestants() {
   useGLTF.preload(ARENA_MODELS.player);
+  useGLTF.preload(ARENA_MODELS.host);
 }

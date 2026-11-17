@@ -14,7 +14,8 @@ const BONES = [
   "ForearmR",
 ] as const;
 type Bone = (typeof BONES)[number];
-type Pose = Partial<Record<Bone, [number, number, number]>>;
+export type Pose = Partial<Record<Bone, [number, number, number]>>;
+export type PoseSet = Record<QuizCupArenaPlayerStatus, Pose>;
 
 const READY: Pose = {
   Spine: [0.04, 0, 0],
@@ -24,7 +25,7 @@ const READY: Pose = {
   ForearmR: [-0.95, 0, 0],
 };
 
-const POSES: Record<QuizCupArenaPlayerStatus, Pose> = {
+export const POSES: PoseSet = {
   idle: {
     UpperArmL: [-0.1, 0, 0.05],
     UpperArmR: [-0.1, 0, -0.05],
@@ -104,6 +105,7 @@ export class PlayerRig {
   constructor(
     private readonly root: THREE.Object3D,
     seed: number,
+    private readonly poses: PoseSet = POSES,
   ) {
     this.seed = seed;
     this.random = seed * 7919 + 1;
@@ -144,7 +146,7 @@ export class PlayerRig {
   }
 
   update(t: number, dt: number, status: QuizCupArenaPlayerStatus) {
-    const pose = POSES[status];
+    const pose = this.poses[status];
     const k = 1 - Math.exp(-dt * POSE_RATE);
     const s = this.seed;
 
