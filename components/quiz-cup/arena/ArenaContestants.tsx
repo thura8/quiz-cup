@@ -16,6 +16,7 @@ import type { QuizCupArenaPlayer } from "@/types/quiz-cup";
 
 import { drawNameTexture } from "./arena-utils";
 import { CASUAL, CONTESTANT, GRANDMA, STUDENT } from "./mascot/characters";
+import { prepareCharacter } from "./mascot/prepare-character";
 import { setToon } from "./mascot/toon";
 import { PlayerRig } from "./player-rig";
 import { type SlotHandles, statusLeds, usePodiums } from "./use-podiums";
@@ -89,7 +90,7 @@ function useCharacters(slots: PodiumSlot[]) {
     const deck = dealCast(slots.length, seed);
     return slots.map((slot, i) => {
       const spec = CAST[deck[i]];
-      const root = cloneSkinned(models[deck[i]].scene);
+      const root = cloneSkinned(prepareCharacter(models[deck[i]].scene));
       root.position.set(...playerSpot(slot));
       root.rotation.y = slot.yaw;
       root.scale.setScalar(characterScale(slot) * (spec.stageScale ?? 1));

@@ -10,6 +10,7 @@ import { ARENA_MODELS } from "@/constants/quiz-cup-arena";
 
 import { placeHost } from "./arena-utils";
 import { HOST } from "./mascot/characters";
+import { prepareCharacter } from "./mascot/prepare-character";
 import { setToon } from "./mascot/toon";
 import { PlayerRig } from "./player-rig";
 
@@ -17,7 +18,7 @@ const HOST_SCALE = 1;
 const HOST_RIG_SEED = 7;
 
 function buildHost(scene: THREE.Object3D) {
-  const root = cloneSkinned(scene);
+  const root = cloneSkinned(prepareCharacter(scene));
   root.traverse((object) => {
     if ((object as THREE.Mesh).isMesh) object.castShadow = true;
   });

@@ -88,28 +88,43 @@ function addFasciaBands(group: THREE.Group) {
   trim(0.05, 2.55, 0.025, glow(STUDIO.violet, 1.3));
 }
 
-function addCeiling(group: THREE.Group) {
-  const { radius, height } = WALL;
-  const ceiling = new THREE.Mesh(
-    new THREE.CircleGeometry(radius + 1, 64).rotateX(Math.PI / 2),
-    painted("#0b0920", 0.9, 0),
-  );
-  ceiling.position.set(STUDIO_CENTER.x, height, STUDIO_CENTER.z);
-  group.add(ceiling);
-
-  const panelGeometry = new THREE.PlaneGeometry(CEILING_PANEL_SIZE, CEILING_PANEL_SIZE).rotateX(Math.PI / 2);
-  const panelMaterial = painted("#15123a", 0.8, 0.1);
+function ceilingPanelPositions(radius: number, y: number) {
+  const positions: THREE.Vector3[] = [];
   const cells = Math.ceil(radius / CEILING_PANEL_PITCH);
   for (let ix = -cells; ix <= cells; ix++) {
     for (let iz = -cells; iz <= cells; iz++) {
       const x = ix * CEILING_PANEL_PITCH;
       const z = STUDIO_CENTER.z + iz * CEILING_PANEL_PITCH;
       if (Math.hypot(x - STUDIO_CENTER.x, z - STUDIO_CENTER.z) > radius - 1.5) continue;
-      const panel = new THREE.Mesh(panelGeometry, panelMaterial);
-      panel.position.set(x, height - 0.02, z);
-      group.add(panel);
+      positions.push(new THREE.Vector3(x, y, z));
     }
   }
+  return positions;
+}
+
+function addCeiling(group: THREE.Group) {
+  const { radius, height } = WALL;
+  const ceiling = new THREE.Group();
+  const backing = new THREE.Mesh(
+    new THREE.CircleGeometry(radius + 1, 64).rotateX(Math.PI / 2),
+    painted("#0b0920", 0.9, 0),
+  );
+  backing.position.set(STUDIO_CENTER.x, height, STUDIO_CENTER.z);
+  ceiling.add(backing);
+
+  const positions = ceilingPanelPositions(radius, height - 0.02);
+  const panels = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(CEILING_PANEL_SIZE, CEILING_PANEL_SIZE).rotateX(Math.PI / 2),
+    painted("#15123a", 0.8, 0.1),
+    positions.length,
+  );
+  const matrix = new THREE.Matrix4();
+  positions.forEach((position, i) => panels.setMatrixAt(i, matrix.makeTranslation(position)));
+  panels.instanceMatrix.needsUpdate = true;
+  panels.computeBoundingSphere();
+  ceiling.add(panels);
+
+  group.add(ceiling);
 }
 
 function buildWalls() {

@@ -20,7 +20,18 @@ function toonGradient(tones: number[]) {
   return gradient;
 }
 
+const toonMaterials = new WeakMap<THREE.MeshStandardMaterial, THREE.MeshToonMaterial>();
+
 function toToon(material: THREE.MeshStandardMaterial) {
+  let toon = toonMaterials.get(material);
+  if (!toon) {
+    toon = createToon(material);
+    toonMaterials.set(material, toon);
+  }
+  return toon;
+}
+
+function createToon(material: THREE.MeshStandardMaterial) {
   return new THREE.MeshToonMaterial({
     name: material.name,
     color: material.color,
@@ -43,7 +54,6 @@ export function setToon(root: THREE.Object3D, enabled: boolean) {
       mesh.userData[PBR_KEY] = mesh.material;
       mesh.material = toToon(mesh.material as THREE.MeshStandardMaterial);
     } else if (!enabled && pbr) {
-      (mesh.material as THREE.Material).dispose();
       mesh.material = pbr;
       delete mesh.userData[PBR_KEY];
     }

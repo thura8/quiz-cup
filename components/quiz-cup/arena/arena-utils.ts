@@ -30,42 +30,67 @@ function bakedGeometry(mesh: THREE.Mesh, toRoot: THREE.Matrix4) {
   return geometry;
 }
 
-export function mergeByMaterial(
-  root: THREE.Object3D,
-  keep: (mesh: THREE.Mesh) => boolean = () => false,
-) {
-  root.updateMatrixWorld(true);
-  const toRoot = new THREE.Matrix4();
-  const rootInverse = root.matrixWorld.clone().invert();
-  const groups = new Map<string, { material: THREE.Material; parts: THREE.BufferGeometry[] }>();
-  const kept: THREE.Mesh[] = [];
+function mergeKey(material: THREE.Material, geometry: THREE.BufferGeometry) {
+  const attributes = Object.entries(geometry.attributes)
+    .map(([name, attr]) => `${name}:${attr.itemSize}`)
+    .sort()
+    .join(",");
+  return `${material.uuid}|${attributes}|${geometry.index ? 1 : 0}`;
+}
 
-  root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    if ((mesh as THREE.SkinnedMesh).isSkinnedMesh || (mesh as THREE.InstancedMesh).isInstancedMesh || keep(mesh)) {
-      kept.push(mesh);
-      return;
-    }
+export function isMergeable(mesh: THREE.Mesh) {
+  return (
+    !(mesh as THREE.SkinnedMesh).isSkinnedMesh &&
+    !(mesh as THREE.InstancedMesh).isInstancedMesh &&
+    !Array.isArray(mesh.material) &&
+    !Object.keys(mesh.geometry.morphAttributes).length
+  );
+}
+
+export function mergeMeshesByMaterial(meshes: THREE.Mesh[], spaceInverse: THREE.Matrix4) {
+  const toSpace = new THREE.Matrix4();
+  const groups = new Map<string, { material: THREE.Material; parts: THREE.BufferGeometry[] }>();
+  for (const mesh of meshes) {
     const material = mesh.material as THREE.Material;
-    toRoot.multiplyMatrices(rootInverse, mesh.matrixWorld);
-    const geometry = bakedGeometry(mesh, toRoot);
-    const key = `${material.uuid}|${Object.keys(geometry.attributes).sort().join(",")}|${geometry.index ? 1 : 0}`;
+    toSpace.multiplyMatrices(spaceInverse, mesh.matrixWorld);
+    const geometry = bakedGeometry(mesh, toSpace);
+    const key = mergeKey(material, geometry);
     const group = groups.get(key) ?? { material, parts: [] };
     group.parts.push(geometry);
     groups.set(key, group);
-  });
+  }
 
-  const merged = new THREE.Group();
+  const merged: THREE.Mesh[] = [];
   for (const { material, parts } of groups.values()) {
     const geometry = parts.length === 1 ? parts[0] : mergeGeometries(parts);
     if (!geometry) continue;
     geometry.computeBoundingSphere();
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = material.name;
-    merged.add(mesh);
+    merged.push(mesh);
     if (parts.length > 1) parts.forEach((p) => p.dispose());
   }
+  return merged;
+}
+
+export function mergeByMaterial(
+  root: THREE.Object3D,
+  keep: (mesh: THREE.Mesh) => boolean = () => false,
+) {
+  root.updateMatrixWorld(true);
+  const rootInverse = root.matrixWorld.clone().invert();
+  const toMerge: THREE.Mesh[] = [];
+  const kept: THREE.Mesh[] = [];
+
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if (!isMergeable(mesh) || keep(mesh)) kept.push(mesh);
+    else toMerge.push(mesh);
+  });
+
+  const merged = new THREE.Group();
+  for (const mesh of mergeMeshesByMaterial(toMerge, rootInverse)) merged.add(mesh);
   freeze(merged);
   return { merged, kept };
 }

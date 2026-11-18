@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AVATAR_COLORS } from "@/constants/avatar";
 import { QUIZ_CUP_BACKGROUND, QUIZ_CUP_LOGO } from "@/constants/quiz-cup";
 import { useMockQuizCupRoom, type MockRoomOptions, type QuizCupRoomRole } from "@/hooks/quiz-cup/useMockQuizCupRoom";
+import { usePrefetchArena } from "@/hooks/quiz-cup/usePrefetchArena";
 import { useOnlineStatus } from "@/hooks/shared/useOnlineStatus";
 import { ApiError } from "@/lib/errors";
 import { isBenignConflict } from "@/lib/rooms/error-messages";
@@ -61,6 +62,7 @@ const QuizCupGame = ({ role, options }: Props) => {
   const [starting, setStarting] = useState(false);
   const [joining, setJoining] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  usePrefetchArena(role === "host");
 
   const exitGame = () => router.push("/");
   const showError = (err: unknown) => toast.error(quizCupErrorMessage(err));
