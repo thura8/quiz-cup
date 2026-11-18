@@ -31,8 +31,8 @@ const fragmentShader = `
   varying float vEdge;
   varying vec3 vColor;
   void main() {
-    float fade = pow(vAlong, 1.6);
-    float soft = pow(vEdge, 2.0);
+    float fade = pow(clamp(vAlong, 0.0, 1.0), 1.6);
+    float soft = pow(clamp(vEdge, 0.0, 1.0), 2.0);
     gl_FragColor = vec4(vColor * fade * soft * uStrength, 1.0);
     #include <colorspace_fragment>
   }
