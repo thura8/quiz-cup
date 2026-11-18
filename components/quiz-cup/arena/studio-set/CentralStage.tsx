@@ -57,7 +57,7 @@ function addTier(group: THREE.Group, tier: Tier, index: number, lipMaterial: THR
   lip.position.y = tier.top - 0.004;
   group.add(lip);
 
-  const riser = new THREE.Mesh(flatRing(tier.r + 0.003, 0.011, 6, 200), glow(STUDIO.violet, 1.4));
+  const riser = new THREE.Mesh(flatRing(tier.r + 0.003, 0.011, 6, 200), glow(STUDIO.violet, 1.0));
   riser.position.y = tier.top * 0.5;
   group.add(riser);
 
@@ -72,11 +72,11 @@ function addTier(group: THREE.Group, tier: Tier, index: number, lipMaterial: THR
 
 function buildCentralStage() {
   const group = new THREE.Group();
-  const lipMaterial = glow(STUDIO.gold, 1.7);
+  const lipMaterial = glow(STUDIO.gold, 1.2);
   STAGE_TIERS.forEach((tier, index) => addTier(group, tier, index, lipMaterial));
 
   for (const radius of INLAY_RADII) {
-    const inlay = new THREE.Mesh(flatRing(radius, 0.016, 6, 160), glow(STUDIO.gold, 1.25));
+    const inlay = new THREE.Mesh(flatRing(radius, 0.016, 6, 160), glow(STUDIO.gold, 0.9));
     inlay.position.y = STAGE_TIERS[0].top + 0.004;
     group.add(inlay);
   }

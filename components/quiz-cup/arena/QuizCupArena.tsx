@@ -1,7 +1,7 @@
 "use client";
 
 import { PerformanceMonitor } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
@@ -32,6 +32,14 @@ const BEAM_STRENGTH: Record<QuizCupArenaPhase, number> = {
   reveal: 1.35,
   leaderboard: 1.7,
 };
+
+function ToneExposure({ exposure }: { exposure: number }) {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    gl.toneMappingExposure = exposure;
+  }, [gl, exposure]);
+  return null;
+}
 
 function detectQualityTier(gl: WebGLRenderingContext | WebGL2RenderingContext): ArenaQuality {
   const info = gl.getExtension("WEBGL_debug_renderer_info");
@@ -95,7 +103,7 @@ export default function QuizCupArena({
           powerPreference: "high-performance",
           stencil: false,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.05,
+          toneMappingExposure: settings.exposure,
         }}
         onCreated={({ gl }) => {
           if (!quality) setAutoTier(detectQualityTier(gl.getContext()));
@@ -107,6 +115,7 @@ export default function QuizCupArena({
           <PerformanceMonitor onDecline={lowerResolution} flipflops={2} onFallback={() => setDprCap(1)} />
         )}
 
+        <ToneExposure exposure={settings.exposure} />
         <StudioEnvironment />
 
         <StageLights shadows={settings.shadows} />

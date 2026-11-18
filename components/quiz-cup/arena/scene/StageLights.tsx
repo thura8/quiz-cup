@@ -40,7 +40,7 @@ export default function StageLights({ shadows }: { shadows: boolean }) {
         ref={keyLight}
         position={[0, 9.4, 1.5]}
         color="#ffd9a0"
-        intensity={160}
+        intensity={115}
         angle={0.5}
         penumbra={0.6}
         distance={26}
@@ -54,7 +54,7 @@ export default function StageLights({ shadows }: { shadows: boolean }) {
       />
       <spotLight ref={leftWing} position={[-4.6, 8.8, -1.5]} color="#ffd6a0" intensity={150} angle={0.5} penumbra={0.7} distance={24} decay={2} />
       <spotLight ref={rightWing} position={[4.6, 8.8, -1.5]} color="#ffd6a0" intensity={150} angle={0.5} penumbra={0.7} distance={24} decay={2} />
-      <spotLight ref={hostLight} position={[0, 8.4, 2.5]} color="#ffd6a0" intensity={110} angle={0.3} penumbra={0.7} distance={20} decay={2} />
+      <spotLight ref={hostLight} position={[0, 8.4, 2.5]} color="#ffd6a0" intensity={80} angle={0.3} penumbra={0.7} distance={20} decay={2} />
       <spotLight ref={leftFill} position={[-10, 6.5, 3]} color="#a45cff" intensity={130} angle={0.7} penumbra={0.9} distance={26} decay={2} />
       <spotLight ref={rightFill} position={[10, 6.5, 3]} color="#5a6bff" intensity={130} angle={0.7} penumbra={0.9} distance={26} decay={2} />
       <directionalLight position={[0, 6, -14]} color="#9d6bff" intensity={1.3} />

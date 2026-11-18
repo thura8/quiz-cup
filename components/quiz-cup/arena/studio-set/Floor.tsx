@@ -42,7 +42,7 @@ export default function Floor({ reflections }: { reflections: boolean }) {
           resolution={1024}
           blur={[140, 50]}
           mixBlur={0.6}
-          mixStrength={9}
+          mixStrength={6}
           mixContrast={1.15}
           mirror={0.75}
           depthScale={0.25}
@@ -65,7 +65,7 @@ export default function Floor({ reflections }: { reflections: boolean }) {
           roughnessMap={maps.roughness}
           normalMap={maps.normal}
           normalScale={[0.25, 0.25]}
-          envMapIntensity={1.4}
+          envMapIntensity={1.0}
         />
       )}
     </mesh>

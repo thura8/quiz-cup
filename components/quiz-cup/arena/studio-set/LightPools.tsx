@@ -81,7 +81,7 @@ function buildLightPools() {
   const texture = poolTexture();
   const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const materials = {
-    floor: additivePoolMaterial(texture, STUDIO.gold, 0.22),
+    floor: additivePoolMaterial(texture, STUDIO.gold, 0.15),
     stage: additivePoolMaterial(texture, STUDIO.gold, 0.05),
   };
 
@@ -91,7 +91,7 @@ function buildLightPools() {
     addFixturePool(group, fixture, plane, materials);
   }
 
-  const halo = new THREE.Mesh(plane, additivePoolMaterial(texture, STUDIO.violet, 0.16));
+  const halo = new THREE.Mesh(plane, additivePoolMaterial(texture, STUDIO.violet, 0.11));
   halo.position.set(STUDIO_CENTER.x, 0.012, STUDIO_CENTER.z);
   halo.scale.set(13, 1, 13);
   group.add(halo);

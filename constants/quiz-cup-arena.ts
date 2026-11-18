@@ -113,9 +113,9 @@ export type ArenaQuality = "high" | "medium" | "low";
 
 export const ARENA_QUALITY: Record<
   ArenaQuality,
-  { dpr: number; bloom: boolean; shadows: boolean; beams: boolean; reflections: boolean }
+  { dpr: number; bloom: boolean; shadows: boolean; beams: boolean; reflections: boolean; exposure: number }
 > = {
-  high: { dpr: 1.5, bloom: true, shadows: true, beams: true, reflections: true },
-  medium: { dpr: 1.25, bloom: true, shadows: true, beams: true, reflections: false },
-  low: { dpr: 1, bloom: false, shadows: false, beams: false, reflections: false },
+  high: { dpr: 1.5, bloom: true, shadows: true, beams: true, reflections: true, exposure: 1.05 },
+  medium: { dpr: 1.25, bloom: true, shadows: true, beams: true, reflections: false, exposure: 0.8 },
+  low: { dpr: 1, bloom: false, shadows: false, beams: false, reflections: false, exposure: 0.85 },
 };

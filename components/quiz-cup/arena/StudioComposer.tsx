@@ -105,7 +105,7 @@ export default function StudioComposer({ ambientOcclusion }: { ambientOcclusion:
     const sanitize = new ShaderPass(SanitizeShader);
     composer.addPass(sanitize);
 
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.5, 0.86));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.5, 0.86));
     const dither = new ShaderPass(DitherShader);
     composer.addPass(dither);
     composer.addPass(new OutputPass());

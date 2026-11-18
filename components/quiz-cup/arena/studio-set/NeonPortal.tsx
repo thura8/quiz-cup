@@ -77,11 +77,11 @@ function ringShape({ outer, inner, bump, innerBump }: RingOutline): THREE.Shape 
 function portalFrames(): PortalFrame[] {
   const { width: w, height: h, z } = QUIZ_CUP_SCREEN;
   return [
-    { outer: [w + 0.7, h + 0.7, 0.5], inner: [w, h, 0.22], depth: 0.3, z: z - 0.02, color: "#d86fe0", neon: STUDIO.gold, neonWidth: 0.06, neonGain: 1.7 },
-    { outer: [w + 2.0, h + 1.9, 0.95], inner: [w + 0.62, h + 0.62, 0.48], depth: 0.34, z: z - 0.25, color: "#8a66ec", neon: "#ffb3f0", neonWidth: 0.05, neonGain: 1.4 },
-    { outer: [w + 3.6, h + 3.3, 1.5], inner: [w + 1.9, h + 1.82, 0.92], depth: 0.38, z: z - 0.5, color: "#4f4fd0", neon: STUDIO.violet, neonWidth: 0.05, neonGain: 1.6 },
-    { outer: [w + 5.6, h + 4.9, 2.1], inner: [w + 3.5, h + 3.22, 1.45], depth: 0.4, z: z - 0.78, color: "#33297e", neon: STUDIO.gold, neonWidth: 0.055, neonGain: 1.5 },
-    { outer: [w + 8.4, h + 6.4, 2.8], inner: [w + 5.5, h + 4.82, 2.05], bump: { w: w * 1.15, h: 0.9 }, depth: 0.42, z: z - 1.08, color: "#241d62", neon: "#ff9a6a", neonWidth: 0.06, neonGain: 1.4 },
+    { outer: [w + 0.7, h + 0.7, 0.5], inner: [w, h, 0.22], depth: 0.3, z: z - 0.02, color: "#d86fe0", neon: STUDIO.gold, neonWidth: 0.06, neonGain: 1.2 },
+    { outer: [w + 2.0, h + 1.9, 0.95], inner: [w + 0.62, h + 0.62, 0.48], depth: 0.34, z: z - 0.25, color: "#8a66ec", neon: "#ffb3f0", neonWidth: 0.05, neonGain: 1.0 },
+    { outer: [w + 3.6, h + 3.3, 1.5], inner: [w + 1.9, h + 1.82, 0.92], depth: 0.38, z: z - 0.5, color: "#4f4fd0", neon: STUDIO.violet, neonWidth: 0.05, neonGain: 1.1 },
+    { outer: [w + 5.6, h + 4.9, 2.1], inner: [w + 3.5, h + 3.22, 1.45], depth: 0.4, z: z - 0.78, color: "#33297e", neon: STUDIO.gold, neonWidth: 0.055, neonGain: 1.05 },
+    { outer: [w + 8.4, h + 6.4, 2.8], inner: [w + 5.5, h + 4.82, 2.05], bump: { w: w * 1.15, h: 0.9 }, depth: 0.42, z: z - 1.08, color: "#241d62", neon: "#ff9a6a", neonWidth: 0.06, neonGain: 1.0 },
   ];
 }
 
