@@ -17,7 +17,7 @@ import type { QuizCupArenaPlayer } from "@/types/quiz-cup";
 import { drawNameTexture } from "./arena-utils";
 import { CASUAL, CONTESTANT, GRANDMA, STUDENT } from "./mascot/characters";
 import { prepareCharacter } from "./mascot/prepare-character";
-import { setToon } from "./mascot/toon";
+import { setToon, tintOutfit } from "./mascot/toon";
 import { PlayerRig } from "./player-rig";
 import { type SlotHandles, statusLeds, usePodiums } from "./use-podiums";
 
@@ -29,6 +29,8 @@ const FLASH_DURATION = 0.7;
 const MAX_FRAME_DELTA = 0.1;
 const CAST = [STUDENT, GRANDMA, CASUAL, CONTESTANT];
 const CAST_MODELS = CAST.map((spec) => spec.glb);
+/** Jacket hue rotation (radians) for the 1st, 2nd, 3rd… copy of the same character on stage. */
+const OUTFIT_HUES = [0, 1.2, -1.2, Math.PI];
 const tagPoint = new THREE.Vector3();
 
 const nowInSeconds = () => performance.now() / 1000;
@@ -88,9 +90,11 @@ function useCharacters(slots: PodiumSlot[]) {
   const [seed] = useState(() => Math.floor(Math.random() * 2 ** 31));
   const characters = useMemo(() => {
     const deck = dealCast(slots.length, seed);
+    const copies = CAST.map(() => 0);
     return slots.map((slot, i) => {
       const spec = CAST[deck[i]];
       const root = cloneSkinned(prepareCharacter(models[deck[i]].scene));
+      tintOutfit(root, OUTFIT_HUES[copies[deck[i]]++ % OUTFIT_HUES.length]);
       root.position.set(...playerSpot(slot));
       root.rotation.y = slot.yaw;
       root.scale.setScalar(characterScale(slot) * (spec.stageScale ?? 1));

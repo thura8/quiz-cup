@@ -20,6 +20,51 @@ function toonGradient(tones: number[]) {
   return gradient;
 }
 
+const HUE_KEY = "outfitHue";
+const OUTFIT_SUFFIXES = ["_Jacket", "_Sleeve", "_SleeveFolds", "_Cuff", "_Collar", "_Hood"];
+
+function withHueShift<T extends THREE.Material>(material: T, hue: number): T {
+  material.userData[HUE_KEY] = hue;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uOutfitHue = { value: hue };
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "uniform float uOutfitHue;\nvoid main() {")
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          const vec3 k = vec3(0.57735);
+          float c = cos(uOutfitHue);
+          vec3 v = diffuseColor.rgb;
+          diffuseColor.rgb = max(v * c + cross(k, v) * sin(uOutfitHue) + k * dot(k, v) * (1.0 - c), 0.0);
+        }`,
+      );
+  };
+  material.customProgramCacheKey = () => HUE_KEY;
+  return material;
+}
+
+const outfitVariants = new WeakMap<THREE.Material, Map<number, THREE.Material>>();
+
+function outfitVariant(material: THREE.Material, hue: number) {
+  let byHue = outfitVariants.get(material);
+  if (!byHue) outfitVariants.set(material, (byHue = new Map()));
+  let variant = byHue.get(hue);
+  if (!variant) byHue.set(hue, (variant = withHueShift(material.clone(), hue)));
+  return variant;
+}
+
+/** Rotates the hue of a character's jacket/top materials (not trousers), keeping texture detail. */
+export function tintOutfit(root: THREE.Object3D, hue: number) {
+  if (!hue) return;
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    const material = mesh.material;
+    if (!mesh.isMesh || Array.isArray(material)) return;
+    if (OUTFIT_SUFFIXES.some((suffix) => material.name.endsWith(suffix))) mesh.material = outfitVariant(material, hue);
+  });
+}
+
 const toonMaterials = new WeakMap<THREE.MeshStandardMaterial, THREE.MeshToonMaterial>();
 
 function toToon(material: THREE.MeshStandardMaterial) {
@@ -32,7 +77,7 @@ function toToon(material: THREE.MeshStandardMaterial) {
 }
 
 function createToon(material: THREE.MeshStandardMaterial) {
-  return new THREE.MeshToonMaterial({
+  const toon = new THREE.MeshToonMaterial({
     name: material.name,
     color: material.color,
     map: material.map,
@@ -43,6 +88,8 @@ function createToon(material: THREE.MeshStandardMaterial) {
     depthWrite: material.depthWrite,
     side: material.side,
   });
+  const hue = material.userData[HUE_KEY] as number | undefined;
+  return hue ? withHueShift(toon, hue) : toon;
 }
 
 export function setToon(root: THREE.Object3D, enabled: boolean) {
